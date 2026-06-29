@@ -1,0 +1,145 @@
+import React, { useState, useEffect } from 'react';
+import { storageAPI } from './utils/storage';
+import Login from './components/Login';
+import Navbar from './components/Navbar';
+import Dashboard from './components/Dashboard';
+import StockPallet from './components/StockPallet';
+import Outstanding from './components/Outstanding';
+import KilnDry from './components/KilnDry';
+import Materials from './components/Materials';
+import Repairs from './components/Repairs';
+import UserManagement from './components/UserManagement';
+import { Menu } from 'lucide-react';
+
+export default function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const initApp = async () => {
+      // Initialize LocalStorage with mock data on first load
+      await storageAPI.init();
+      
+      // Check if user is already logged in
+      const user = storageAPI.getCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+      }
+      setIsLoading(false);
+    };
+    initApp();
+  }, []);
+
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    setActiveTab('dashboard'); // Default to dashboard on login
+  };
+
+  const handleLogout = () => {
+    storageAPI.setCurrentUser(null);
+    setCurrentUser(null);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-full border-4 border-indigo-600/20 border-t-indigo-600 animate-spin"></div>
+          <span className="text-slate-500 font-semibold text-sm">Memuat aplikasi...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // If not logged in, show login page
+  if (!currentUser) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Render active component
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'stock-pallet':
+        return <StockPallet user={currentUser} />;
+      case 'outstanding':
+        return <Outstanding user={currentUser} />;
+      case 'kiln-dry':
+        return <KilnDry user={currentUser} />;
+      case 'materials':
+        return <Materials user={currentUser} />;
+      case 'repairs':
+        return <Repairs user={currentUser} />;
+      case 'users':
+        return currentUser.role === 'admin' ? <UserManagement /> : <Dashboard />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  return (
+    <div className="flex bg-[#f8fafc] min-h-screen text-slate-700 antialiased overflow-x-hidden">
+      {/* Sidebar Navigation */}
+      <Navbar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        user={currentUser} 
+        onLogout={handleLogout} 
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+      />
+
+      {/* Backdrop for mobile */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-40 md:hidden transition-all duration-300"
+        />
+      )}
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full">
+        {/* Top Header Bar */}
+        <header className="h-20 bg-white border-b border-slate-200/80 sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 md:hidden cursor-pointer transition-all"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 text-xs font-semibold uppercase tracking-widest hidden xs:block">Aplikasi Warehouse</span>
+              <span className="text-slate-300 font-medium hidden xs:block">/</span>
+              <span className="text-indigo-650 text-xs font-bold uppercase tracking-wider bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100/80">
+                {activeTab.replace('-', ' ')}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden sm:block">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Cabang</span>
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Sidoarjo, Jawa Timur</span>
+            </div>
+            <div className="w-px h-6 bg-slate-200 hidden sm:block"></div>
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-bold text-slate-800">{currentUser.name}</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 uppercase">
+                {currentUser.role}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Dashboard/Tab Page Content Wrapper */}
+        <div className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto pb-16">
+          {renderContent()}
+        </div>
+      </main>
+    </div>
+  );
+}
