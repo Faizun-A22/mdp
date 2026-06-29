@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { storageAPI } from '../utils/storage';
-import { Plus, Search, Trash2, Edit3, X, Download, Check, AlertCircle, Info, Send, RefreshCw, Loader2, Link, ChevronLeft, Calendar, FileText, BarChart2, Image } from 'lucide-react';
+import { Plus, Search, Trash2, Edit3, X, FileSpreadsheet, Download, Check, AlertCircle, Info, Send, RefreshCw, Loader2, Link, ChevronLeft, Calendar, FileText, BarChart2, Image } from 'lucide-react';
 
 export default function Outstanding({ user }) {
   const [data, setData] = useState([]);
