@@ -2,16 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { storageAPI } from '../utils/storage';
 import { Plus, Check, Play, Zap, Trash2, Edit3, X, RefreshCw, Link as LinkIcon, Loader2, Download } from 'lucide-react';
 
+const parseCustomerItems = (customer, defaultUkuran = '1000x1200 mm', defaultQty = 0) => {
+  try {
+    const parsed = JSON.parse(customer);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return [{ palletName: customer || '', ukuran: defaultUkuran, qty: defaultQty }];
+};
+
 export default function KilnDry({ user }) {
   const [activeTab, setActiveTab] = useState('belum'); // belum, setelah, listrik
   const [belumKD, setBelumKD] = useState([]);
   const [setelahKD, setSetelahKD] = useState([]);
   const [listrikKD, setListrikKD] = useState([]);
   const [palletTypes, setPalletTypes] = useState([]);
-  const [showDropdownBelum, setShowDropdownBelum] = useState(false);
-  const [showDropdownSetelah, setShowDropdownSetelah] = useState(false);
-  const [belumPalletSearch, setBelumPalletSearch] = useState('');
-  const [setelahPalletSearch, setSetelahPalletSearch] = useState('');
+
+  // States for multiple pallet items inside oven/chamber
+  const [belumKDItems, setBelumKDItems] = useState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }]);
+  const [setelahKDItems, setSetelahKDItems] = useState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }]);
 
   // Google Sheets Sync
   const [isPushing, setIsPushing] = useState(false);
@@ -72,8 +84,8 @@ export default function KilnDry({ user }) {
       if (types.length > 0) {
         setFormBelum(prev => ({ ...prev, ukuran: types[0].ukuran }));
         setFormSetelah(prev => ({ ...prev, ukuran: types[0].ukuran }));
-        setBelumPalletSearch(types[0].nama);
-        setSetelahPalletSearch(types[0].nama);
+        setBelumKDItems([{ palletName: types[0].nama, ukuran: types[0].ukuran, qty: 0 }]);
+        setSetelahKDItems([{ palletName: types[0].nama, ukuran: types[0].ukuran, qty: 0 }]);
       }
     };
     loadKDData();
@@ -95,11 +107,31 @@ export default function KilnDry({ user }) {
   const handleBelumSubmit = async (e) => {
     e.preventDefault();
 
+    if (belumKDItems.length === 0 || belumKDItems.some(i => !i.palletName)) {
+      alert('Pilih Jenis Pallet terlebih dahulu!');
+      return;
+    }
+
+    const totalQty = belumKDItems.reduce((acc, curr) => acc + (Number(curr.qty) || 0), 0);
+    const customerJson = JSON.stringify(belumKDItems.map(item => ({
+      palletName: item.palletName,
+      ukuran: item.ukuran,
+      qty: Number(item.qty) || 0
+    })));
+    const combinedUkuran = Array.from(new Set(belumKDItems.map(item => item.ukuran))).join(', ');
+
+    const finalForm = {
+      ...formBelum,
+      customer: customerJson,
+      ukuran: combinedUkuran,
+      qty: totalQty
+    };
+
     let updated;
     if (editingItem) {
-      updated = belumKD.map(item => item.id === editingItem.id ? { ...formBelum, id: item.id } : item);
+      updated = belumKD.map(item => item.id === editingItem.id ? { ...finalForm, id: item.id } : item);
     } else {
-      updated = [{ ...formBelum, id: 'kdb_' + Date.now() }, ...belumKD];
+      updated = [{ ...finalForm, id: 'kdb_' + Date.now() }, ...belumKD];
     }
     setBelumKD(updated);
     await storageAPI.saveKDBelum(updated);
@@ -113,7 +145,9 @@ export default function KilnDry({ user }) {
   };
 
   const handleFinishKD = async (item) => {
-    if (window.confirm(`Selesaikan proses kiln dry untuk ${item.customer} (${item.qty} pcs)?`)) {
+    const items = parseCustomerItems(item.customer, item.ukuran, item.qty);
+    const namesList = items.map(i => `${i.palletName} (${i.qty} pcs)`).join(', ');
+    if (window.confirm(`Selesaikan proses kiln dry untuk ${namesList}?`)) {
       const newSetelah = {
         id: 'kds_' + Date.now(),
         tanggalMulai: item.tanggal,
@@ -155,6 +189,7 @@ export default function KilnDry({ user }) {
       status: 'Chamber 1',
       monitoringLogs: []
     });
+    setBelumKDItems(palletTypes.length > 0 ? [{ palletName: palletTypes[0].nama, ukuran: palletTypes[0].ukuran, qty: 0 }] : [{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }]);
   };
 
   const handleBelumEdit = (item) => {
@@ -163,7 +198,7 @@ export default function KilnDry({ user }) {
       ...item,
       monitoringLogs: item.monitoringLogs || []
     });
-    setBelumPalletSearch(item.customer);
+    setBelumKDItems(parseCustomerItems(item.customer, item.ukuran, item.qty));
     setIsBelumModalOpen(true);
   };
 
@@ -171,11 +206,31 @@ export default function KilnDry({ user }) {
   const handleSetelahSubmit = async (e) => {
     e.preventDefault();
 
+    if (setelahKDItems.length === 0 || setelahKDItems.some(i => !i.palletName)) {
+      alert('Pilih Jenis Pallet terlebih dahulu!');
+      return;
+    }
+
+    const totalQty = setelahKDItems.reduce((acc, curr) => acc + (Number(curr.qty) || 0), 0);
+    const customerJson = JSON.stringify(setelahKDItems.map(item => ({
+      palletName: item.palletName,
+      ukuran: item.ukuran,
+      qty: Number(item.qty) || 0
+    })));
+    const combinedUkuran = Array.from(new Set(setelahKDItems.map(item => item.ukuran))).join(', ');
+
+    const finalForm = {
+      ...formSetelah,
+      customer: customerJson,
+      ukuran: combinedUkuran,
+      qty: totalQty
+    };
+
     let updated;
     if (editingItem) {
-      updated = setelahKD.map(item => item.id === editingItem.id ? { ...formSetelah, id: item.id } : item);
+      updated = setelahKD.map(item => item.id === editingItem.id ? { ...finalForm, id: item.id } : item);
     } else {
-      updated = [{ ...formSetelah, id: 'kds_' + Date.now() }, ...setelahKD];
+      updated = [{ ...finalForm, id: 'kds_' + Date.now() }, ...setelahKD];
     }
     setSetelahKD(updated);
     await storageAPI.saveKDSetelah(updated);
@@ -193,15 +248,13 @@ export default function KilnDry({ user }) {
   const handleSetelahEdit = (item) => {
     setEditingItem(item);
     setFormSetelah({ ...item });
-    const matchedType = palletTypes.find(pt => pt.ukuran === item.ukuran);
-    setSetelahPalletSearch(matchedType ? matchedType.nama : '');
+    setSetelahKDItems(parseCustomerItems(item.customer, item.ukuran, item.qty));
     setIsSetelahModalOpen(true);
   };
 
   const closeSetelahModal = () => {
     setIsSetelahModalOpen(false);
     setEditingItem(null);
-    setSetelahPalletSearch(palletTypes[0]?.nama || '');
     setFormSetelah({
       tanggalMulai: new Date().toISOString().split('T')[0],
       tanggalSelesai: new Date().toISOString().split('T')[0],
@@ -212,6 +265,7 @@ export default function KilnDry({ user }) {
       hasil: 'Baik',
       catatan: ''
     });
+    setSetelahKDItems(palletTypes.length > 0 ? [{ palletName: palletTypes[0].nama, ukuran: palletTypes[0].ukuran, qty: 0 }] : [{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }]);
   };
 
   // --- Handlers for Listrik KD ---
@@ -254,11 +308,13 @@ export default function KilnDry({ user }) {
     setIsListrikModalOpen(false);
     setEditingItem(null);
     setFormListrik({
-      namaPt: '',
+      namaPt: palletTypes.length > 0 ? palletTypes[0].nama : '',
       kd: 'KD 01',
       qty: 0,
       hari: { Senin: false, Selasa: false, Rabu: false, Kamis: false, Jumat: false, Sabtu: false, Minggu: false },
       jumlah: 0,
+      tanggalMulai: new Date().toISOString().split('T')[0],
+      jamMulai: '08:00',
       tanggalSelesai: new Date().toISOString().split('T')[0],
       jamSelesai: '17:00'
     });
@@ -602,11 +658,38 @@ export default function KilnDry({ user }) {
                             <td className="py-3.5 px-4 text-slate-500 text-xs">
                               {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </td>
-                            <td className="py-3.5 px-4 font-bold text-slate-800">{item.customer}</td>
-                            <td className="py-3.5 px-4">
-                              <span className="px-2 py-0.5 rounded bg-slate-100 text-xs border border-slate-200 text-slate-600 font-bold">{item.ukuran}</span>
+                            <td className="py-3.5 px-4 text-slate-800">
+                              <div className="space-y-1">
+                                {parseCustomerItems(item.customer, item.ukuran, item.qty).map((subItem, idx) => (
+                                  <div key={idx} className="font-bold text-slate-800">
+                                    {subItem.palletName || 'Tanpa Nama'}
+                                  </div>
+                                ))}
+                              </div>
                             </td>
-                            <td className="py-3.5 px-4 text-center font-bold text-indigo-600">{item.qty} pcs</td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex flex-col gap-1">
+                                {parseCustomerItems(item.customer, item.ukuran, item.qty).map((subItem, idx) => (
+                                  <div key={idx}>
+                                    <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-xs border border-slate-200 text-slate-600 font-bold">
+                                      {subItem.ukuran}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold text-indigo-600">
+                              <div className="flex flex-col gap-1">
+                                {parseCustomerItems(item.customer, item.ukuran, item.qty).map((subItem, idx) => (
+                                  <div key={idx} className="text-xs text-slate-600">
+                                    {subItem.qty} pcs
+                                  </div>
+                                ))}
+                                <div className="text-[10px] text-slate-400 font-bold border-t border-slate-100 pt-0.5 mt-0.5">
+                                  Total: {item.qty} pcs
+                                </div>
+                              </div>
+                            </td>
                             <td className="py-3.5 px-4 text-center">
                               {item.monitoringLogs && item.monitoringLogs.length > 0 ? (
                                 <span className="inline-flex px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-xs font-bold">
@@ -699,12 +782,39 @@ export default function KilnDry({ user }) {
                         <td className="py-4 px-4 text-xs text-slate-500">
                           {new Date(item.tanggalMulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - {new Date(item.tanggalSelesai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
-                        <td className="py-4 px-4 font-bold text-slate-800">{item.customer}</td>
-                        <td className="py-4 px-4">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 text-xs border border-slate-200 text-slate-600 font-bold">{item.ukuran}</span>
-                        </td>
+                        <td className="py-4 px-4 text-slate-800">
+                           <div className="space-y-1">
+                             {parseCustomerItems(item.customer, item.ukuran, item.qty).map((subItem, idx) => (
+                               <div key={idx} className="font-bold text-slate-800">
+                                 {subItem.palletName || 'Tanpa Nama'}
+                               </div>
+                             ))}
+                           </div>
+                         </td>
+                         <td className="py-4 px-4">
+                           <div className="flex flex-col gap-1">
+                             {parseCustomerItems(item.customer, item.ukuran, item.qty).map((subItem, idx) => (
+                               <div key={idx}>
+                                 <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-xs border border-slate-200 text-slate-600 font-bold">
+                                   {subItem.ukuran}
+                                 </span>
+                               </div>
+                             ))}
+                           </div>
+                         </td>
                         <td className="py-4 px-4 text-center text-cyan-600 font-bold">{item.kd}</td>
-                        <td className="py-4 px-4 text-center font-extrabold text-slate-800">{item.qty} pcs</td>
+                        <td className="py-4 px-4 text-center font-extrabold text-slate-800">
+                           <div className="flex flex-col gap-1">
+                             {parseCustomerItems(item.customer, item.ukuran, item.qty).map((subItem, idx) => (
+                               <div key={idx} className="text-xs text-slate-600">
+                                 {subItem.qty} pcs
+                               </div>
+                             ))}
+                             <div className="text-[10px] text-slate-400 font-bold border-t border-slate-100 pt-0.5 mt-0.5">
+                               Total: {item.qty} pcs
+                             </div>
+                           </div>
+                         </td>
                         <td className="py-4 px-4 text-center">
                           <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
                             item.hasil === 'Baik' 
@@ -909,90 +1019,85 @@ export default function KilnDry({ user }) {
                 />
               </div>
 
-              <div className="relative">
-                <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Jenis Pallet (Master)</label>
-                <input
-                  type="text"
-                  placeholder="🔍 Ketik untuk cari Jenis Pallet..."
-                  value={belumPalletSearch}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setBelumPalletSearch(val);
-                    setShowDropdownBelum(true);
-                    const match = palletTypes.find(pt => pt.nama.toLowerCase() === val.toLowerCase());
-                    if (match) {
-                      setFormBelum(prev => ({ ...prev, ukuran: match.ukuran }));
-                    }
-                  }}
-                  onFocus={(e) => {
-                    e.target.select();
-                    setShowDropdownBelum(true);
-                  }}
-                  onBlur={() => setTimeout(() => setShowDropdownBelum(false), 200)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-855 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                />
-                {showDropdownBelum && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                    {palletTypes
-                      .filter(pt => {
-                        const matchType = palletTypes.find(p => p.ukuran === formBelum.ukuran);
-                        const matchName = matchType ? matchType.nama : '';
-                        if (!belumPalletSearch || belumPalletSearch === matchName) return true;
-                        return pt.nama.toLowerCase().includes(belumPalletSearch.toLowerCase()) ||
-                               pt.ukuran.toLowerCase().includes(belumPalletSearch.toLowerCase());
-                      })
-                      .map(pt => (
+              {/* Dynamic Pallet Items List */}
+              <div className="space-y-4 pt-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider">Daftar Pallet Oven</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaultPT = palletTypes.length > 0 ? palletTypes[0] : { nama: '', ukuran: '1000x1200 mm' };
+                      setBelumKDItems([...belumKDItems, { palletName: defaultPT.nama, ukuran: defaultPT.ukuran, qty: 0 }]);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-650 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Tambah Jenis Pallet
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {belumKDItems.map((item, idx) => (
+                    <div key={idx} className="bg-slate-50/70 p-3 rounded-xl border border-slate-150 relative space-y-3">
+                      {belumKDItems.length > 1 && (
                         <button
-                          key={pt.id}
                           type="button"
                           onClick={() => {
-                            setFormBelum(prev => ({
-                              ...prev,
-                              ukuran: pt.ukuran
-                            }));
-                            setBelumPalletSearch(pt.nama);
-                            setShowDropdownBelum(false);
+                            setBelumKDItems(belumKDItems.filter((_, i) => i !== idx));
                           }}
-                          className="w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 text-slate-700 hover:text-slate-900 font-semibold transition-all border-b border-slate-100 last:border-none cursor-pointer flex justify-between items-center"
+                          className="absolute right-2 top-2 p-1 text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                         >
-                          <span>{pt.nama}</span>
-                          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-bold">{pt.ukuran}</span>
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      ))
-                    }
-                    {palletTypes.filter(pt => {
-                      const matchType = palletTypes.find(p => p.ukuran === formBelum.ukuran);
-                      const matchName = matchType ? matchType.nama : '';
-                      if (!belumPalletSearch || belumPalletSearch === matchName) return true;
-                      return pt.nama.toLowerCase().includes(belumPalletSearch.toLowerCase()) ||
-                             pt.ukuran.toLowerCase().includes(belumPalletSearch.toLowerCase());
-                    }).length === 0 && (
-                      <div className="px-4 py-3 text-slate-400 text-xs text-center font-medium">
-                        Jenis pallet tidak ditemukan
+                      )}
+                      <div>
+                        <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Jenis Pallet</label>
+                        <select
+                          value={item.palletName}
+                          onChange={(e) => {
+                            const selectedName = e.target.value;
+                            const match = palletTypes.find(pt => pt.nama === selectedName);
+                            const newItems = [...belumKDItems];
+                            newItems[idx].palletName = selectedName;
+                            newItems[idx].ukuran = match ? match.ukuran : '1000x1200 mm';
+                            setBelumKDItems(newItems);
+                          }}
+                          className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        >
+                          <option value="">-- Pilih Jenis Pallet --</option>
+                          {palletTypes.map(pt => (
+                            <option key={pt.id} value={pt.nama}>
+                              {pt.nama} ({pt.ukuran})
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Ukuran Pallet (Otomatis)</label>
-                  <input
-                    type="text"
-                    value={formBelum.ukuran}
-                    readOnly
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none text-sm font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">QTY (Pcs)</label>
-                  <input
-                    type="number"
-                    value={formBelum.qty}
-                    onChange={(e) => setFormBelum({ ...formBelum, qty: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                  />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Ukuran (Auto)</label>
+                          <input
+                            type="text"
+                            value={item.ukuran}
+                            readOnly
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">QTY (Pcs)</label>
+                          <input
+                            type="number"
+                            value={item.qty || ''}
+                            onChange={(e) => {
+                              const newItems = [...belumKDItems];
+                              newItems[idx].qty = Number(e.target.value) || 0;
+                              setBelumKDItems(newItems);
+                            }}
+                            placeholder="0"
+                            className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1113,82 +1218,88 @@ export default function KilnDry({ user }) {
                   />
                 </div>
               </div>
-              <div className="relative">
-                <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Jenis Pallet (Master)</label>
-                <input
-                  type="text"
-                  placeholder="🔍 Ketik untuk cari Jenis Pallet..."
-                  value={setelahPalletSearch}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSetelahPalletSearch(val);
-                    setShowDropdownSetelah(true);
-                    const match = palletTypes.find(pt => pt.nama.toLowerCase() === val.toLowerCase());
-                    if (match) {
-                      setFormSetelah(prev => ({ ...prev, ukuran: match.ukuran }));
-                    }
-                  }}
-                  onFocus={(e) => {
-                    e.target.select();
-                    setShowDropdownSetelah(true);
-                  }}
-                  onBlur={() => setTimeout(() => setShowDropdownSetelah(false), 200)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-855 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                />
-                {showDropdownSetelah && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                    {palletTypes
-                      .filter(pt => {
-                        const matchType = palletTypes.find(p => p.ukuran === formSetelah.ukuran);
-                        const matchName = matchType ? matchType.nama : '';
-                        if (!setelahPalletSearch || setelahPalletSearch === matchName) return true;
-                        return pt.nama.toLowerCase().includes(setelahPalletSearch.toLowerCase()) ||
-                               pt.ukuran.toLowerCase().includes(setelahPalletSearch.toLowerCase());
-                      })
-                      .map(pt => (
+               {/* Dynamic Pallet Items List for Setelah KD */}
+              <div className="space-y-4 pt-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider">Daftar Pallet Riwayat KD</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaultPT = palletTypes.length > 0 ? palletTypes[0] : { nama: '', ukuran: '1000x1200 mm' };
+                      setSetelahKDItems([...setelahKDItems, { palletName: defaultPT.nama, ukuran: defaultPT.ukuran, qty: 0 }]);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-650 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Tambah Jenis Pallet
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {setelahKDItems.map((item, idx) => (
+                    <div key={idx} className="bg-slate-50/70 p-3 rounded-xl border border-slate-150 relative space-y-3">
+                      {setelahKDItems.length > 1 && (
                         <button
-                          key={pt.id}
                           type="button"
                           onClick={() => {
-                            setFormSetelah(prev => ({
-                              ...prev,
-                              ukuran: pt.ukuran
-                            }));
-                            setSetelahPalletSearch(pt.nama);
-                            setShowDropdownSetelah(false);
+                            setSetelahKDItems(setelahKDItems.filter((_, i) => i !== idx));
                           }}
-                          className="w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 text-slate-700 hover:text-slate-900 font-semibold transition-all border-b border-slate-100 last:border-none cursor-pointer flex justify-between items-center"
+                          className="absolute right-2 top-2 p-1 text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                         >
-                          <span>{pt.nama}</span>
-                          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-bold">{pt.ukuran}</span>
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      ))
-                    }
-                    {palletTypes.filter(pt => {
-                      const matchType = palletTypes.find(p => p.ukuran === formSetelah.ukuran);
-                      const matchName = matchType ? matchType.nama : '';
-                      if (!setelahPalletSearch || setelahPalletSearch === matchName) return true;
-                      return pt.nama.toLowerCase().includes(setelahPalletSearch.toLowerCase()) ||
-                             pt.ukuran.toLowerCase().includes(setelahPalletSearch.toLowerCase());
-                    }).length === 0 && (
-                      <div className="px-4 py-3 text-slate-400 text-xs text-center font-medium">
-                        Jenis pallet tidak ditemukan
+                      )}
+                      <div>
+                        <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Jenis Pallet</label>
+                        <select
+                          value={item.palletName}
+                          onChange={(e) => {
+                            const selectedName = e.target.value;
+                            const match = palletTypes.find(pt => pt.nama === selectedName);
+                            const newItems = [...setelahKDItems];
+                            newItems[idx].palletName = selectedName;
+                            newItems[idx].ukuran = match ? match.ukuran : '1000x1200 mm';
+                            setSetelahKDItems(newItems);
+                          }}
+                          className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        >
+                          <option value="">-- Pilih Jenis Pallet --</option>
+                          {palletTypes.map(pt => (
+                            <option key={pt.id} value={pt.nama}>
+                              {pt.nama} ({pt.ukuran})
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Ukuran Pallet (Otomatis)</label>
-                  <input
-                    type="text"
-                    value={formSetelah.ukuran}
-                    readOnly
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none text-xs font-semibold"
-                  />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Ukuran (Auto)</label>
+                          <input
+                            type="text"
+                            value={item.ukuran}
+                            readOnly
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">QTY (Pcs)</label>
+                          <input
+                            type="number"
+                            value={item.qty || ''}
+                            onChange={(e) => {
+                              const newItems = [...setelahKDItems];
+                              newItems[idx].qty = Number(e.target.value) || 0;
+                              setSetelahKDItems(newItems);
+                            }}
+                            placeholder="0"
+                            className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">KD Unit</label>
                   <select
@@ -1199,17 +1310,6 @@ export default function KilnDry({ user }) {
                     <option value="KD 01">KD 01</option>
                     <option value="KD 02">KD 02</option>
                   </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">QTY (pcs)</label>
-                  <input
-                    type="number"
-                    value={formSetelah.qty}
-                    onChange={(e) => setFormSetelah({ ...formSetelah, qty: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                  />
                 </div>
                 <div>
                   <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Hasil Kualitas</label>
@@ -1252,7 +1352,23 @@ export default function KilnDry({ user }) {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleListrikSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+             <form onSubmit={handleListrikSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Jenis Pallet</label>
+                <select
+                  value={formListrik.namaPt}
+                  onChange={(e) => setFormListrik({ ...formListrik, namaPt: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold cursor-pointer"
+                >
+                  <option value="">-- Pilih Jenis Pallet --</option>
+                  {palletTypes.map(pt => (
+                    <option key={pt.id} value={pt.nama}>
+                      {pt.nama} ({pt.ukuran})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">KD Unit</label>
