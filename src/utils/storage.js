@@ -458,8 +458,16 @@ const mapDbToDelivery = (d) => ({
   qtyKirim: Number(d.qty_kirim || 0)
 });
 
-const recalculatePOsWithMutasi = (pos, mutasiList) => {
-  // 1. Group mutasi by customer (which is the pallet name/company name) and ukuran, summing pallet_keluar (out)
+const recalculatePOsWithMutasi = (pos, mutasiList, dels = []) => {
+  // 1. Group deliveries by poId
+  const delsByPoId = {};
+  dels.forEach(d => {
+    const poId = d.poId;
+    if (!delsByPoId[poId]) delsByPoId[poId] = 0;
+    delsByPoId[poId] += Number(d.qtyKirim || 0);
+  });
+
+  // 2. Group mutasi by customer (which is the pallet name/company name) and ukuran, summing pallet_keluar (out)
   const mutasiOutByGroup = {};
   mutasiList.forEach(m => {
     const cust = (m.customer || '').toLowerCase().trim();
@@ -469,7 +477,7 @@ const recalculatePOsWithMutasi = (pos, mutasiList) => {
     mutasiOutByGroup[key] += Number(m.palletKeluar || 0);
   });
 
-  // 2. Group POs by customer and ukuran, sorted by tanggal (oldest first)
+  // 3. Group POs by customer and ukuran, sorted by tanggal (oldest first)
   const poGroups = {};
   pos.forEach(po => {
     const cust = (po.customer || '').toLowerCase().trim();
@@ -484,15 +492,16 @@ const recalculatePOsWithMutasi = (pos, mutasiList) => {
     poGroups[key].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
   }
 
-  // 3. Allocate mutasiOut to POs
+  // 4. Allocate mutasiOut to POs
   const updatedPOsMap = {};
   for (const key in poGroups) {
     let totalOut = mutasiOutByGroup[key] || 0;
     poGroups[key].forEach(po => {
-      const baseKiriman = Number(po.kirimanAwal !== undefined ? po.kirimanAwal : po.kiriman || 0);
-      if (po.kirimanAwal === undefined) {
-        po.kirimanAwal = baseKiriman;
-      }
+      // Base manual kiriman is either the sum of its deliveries, or po.kirimanAwal, or po.kiriman
+      const manualSum = delsByPoId[po.id];
+      const baseKiriman = manualSum !== undefined ? manualSum : Number(po.kirimanAwal !== undefined ? po.kirimanAwal : po.kiriman || 0);
+      
+      po.kirimanAwal = baseKiriman;
       
       const maxAllocatable = Math.max(0, Number(po.jumlahPo) - Number(po.kirimanAwal));
       const allocated = Math.min(maxAllocatable, totalOut);
@@ -510,9 +519,13 @@ const recalculatePOsWithMutasi = (pos, mutasiList) => {
     if (updatedPOsMap[po.id]) {
       return updatedPOsMap[po.id];
     }
+    const manualSum = delsByPoId[po.id];
+    const baseKiriman = manualSum !== undefined ? manualSum : Number(po.kirimanAwal !== undefined ? po.kirimanAwal : po.kiriman || 0);
     return {
       ...po,
-      kirimanAwal: po.kirimanAwal !== undefined ? po.kirimanAwal : po.kiriman || 0
+      kirimanAwal: baseKiriman,
+      kiriman: baseKiriman,
+      sisaPo: Number(po.jumlahPo || 0) - baseKiriman
     };
   });
 };
@@ -723,7 +736,8 @@ export const storageAPI = {
     // Sinkronisasi Otomatis dengan Outstanding POs
     try {
       const pos = await storageAPI.getOutstandingPOs();
-      const updatedPOs = recalculatePOsWithMutasi(pos, data);
+      const dels = await storageAPI.getDeliveries();
+      const updatedPOs = recalculatePOsWithMutasi(pos, data, dels);
       saveToStorage(KEYS.OUTSTANDING_PO, updatedPOs);
       if (supabase) {
         try {
@@ -893,7 +907,8 @@ export const storageAPI = {
     let updated = data;
     try {
       const mutasi = await storageAPI.getStockPallets();
-      updated = recalculatePOsWithMutasi(data, mutasi);
+      const dels = await storageAPI.getDeliveries();
+      updated = recalculatePOsWithMutasi(data, mutasi, dels);
     } catch (e) {
       console.error("Gagal sinkronisasi saat menyimpan Outstanding PO:", e);
     }

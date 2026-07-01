@@ -315,7 +315,7 @@ export default function Outstanding({ user }) {
           ...editingItem,
           jumlahPo,
           kiriman: finalKiriman,
-          kirimanAwal: finalPoDels.length <= 1 ? finalKiriman : item.kirimanAwal,
+          kirimanAwal: finalKiriman,
           sisaPo: Math.max(0, jumlahPo - finalKiriman),
           retur,
           noReff: uniqueRefs,
@@ -364,6 +364,7 @@ export default function Outstanding({ user }) {
         return {
           ...item,
           kiriman: totalKiriman,
+          kirimanAwal: totalKiriman,
           sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman),
           noReff: uniqueRefs,
           tanggalKirim: latestTglKirim || item.tanggalKirim
@@ -417,7 +418,7 @@ export default function Outstanding({ user }) {
         const newPo = {
           ...item,
           kiriman: totalKiriman,
-          kirimanAwal: poDels.length === 0 ? 0 : item.kirimanAwal,
+          kirimanAwal: totalKiriman,
           sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman),
           noReff: uniqueRefs,
           tanggalKirim: latestTglKirim
@@ -468,6 +469,7 @@ export default function Outstanding({ user }) {
         const newPo = {
           ...item,
           kiriman: totalKiriman,
+          kirimanAwal: totalKiriman,
           sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman),
           noReff: uniqueRefs,
           tanggalKirim: latestTglKirim
