@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { storageAPI } from '../utils/storage';
-import { Plus, Search, Trash2, Edit3, X, FileSpreadsheet, Download, Check, AlertCircle, Info, Send, RefreshCw, Loader2, Link, ChevronLeft, Calendar, FileText, BarChart2, Image } from 'lucide-react';
+import { Plus, Search, Trash2, Edit3, X, FileSpreadsheet, Download, Check, AlertCircle, Info, Send, RefreshCw, Loader2, Link, ChevronLeft, Calendar, FileText, BarChart2, Image, Undo } from 'lucide-react';
 
 export default function Outstanding({ user }) {
   const [data, setData] = useState([]);
@@ -43,6 +43,11 @@ export default function Outstanding({ user }) {
   // Form State - Input Kiriman Baru
   const [kirimanItem, setKirimanItem] = useState(null);
   const [newKirimanVal, setNewKirimanVal] = useState(0);
+
+  // Form State - Input Retur Baru
+  const [isReturModalOpen, setIsReturModalOpen] = useState(false);
+  const [returItem, setReturItem] = useState(null);
+  const [newReturVal, setNewReturVal] = useState(0);
   const [newNoReffVal, setNewNoReffVal] = useState('');
   const [newTanggalKirimVal, setNewTanggalKirimVal] = useState(new Date().toISOString().split('T')[0]);
 
@@ -352,7 +357,8 @@ export default function Outstanding({ user }) {
 
     // 3. Hitung ulang total kiriman & sisa PO induk
     const poDels = updatedDeliveries.filter(d => d.poId === kirimanItem.id);
-    const totalKiriman = poDels.reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalKiriman = poDels.filter(d => d.qtyKirim > 0).reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalRetur = poDels.filter(d => d.qtyKirim < 0).reduce((sum, d) => sum + Math.abs(d.qtyKirim), 0);
     const uniqueRefs = Array.from(new Set(poDels.map(d => d.noReff).filter(Boolean))).join(', ');
     
     // Cari tanggal kirim terbaru
@@ -365,7 +371,8 @@ export default function Outstanding({ user }) {
           ...item,
           kiriman: totalKiriman,
           kirimanAwal: totalKiriman,
-          sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman),
+          retur: totalRetur,
+          sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman + totalRetur),
           noReff: uniqueRefs,
           tanggalKirim: latestTglKirim || item.tanggalKirim
         };
@@ -379,6 +386,59 @@ export default function Outstanding({ user }) {
     setIsKirimanModalOpen(false);
     setKirimanItem(null);
     setNewKirimanVal(0);
+    setNewNoReffVal('');
+    setNewTanggalKirimVal(new Date().toISOString().split('T')[0]);
+  };
+
+  const handleAddRetur = async (e) => {
+    e.preventDefault();
+    if (!returItem) return;
+
+    // 1. Buat record retur baru (qtyKirim bernilai negatif)
+    const newDelivery = {
+      id: 'del_' + Date.now(),
+      poId: returItem.id,
+      tanggalKirim: newTanggalKirimVal || new Date().toISOString().split('T')[0],
+      noReff: newNoReffVal.trim(),
+      qtyKirim: -Number(newReturVal)
+    };
+
+    // 2. Simpan ke state dan database
+    const updatedDeliveries = [newDelivery, ...deliveries];
+    setDeliveries(updatedDeliveries);
+    await storageAPI.saveDeliveries(updatedDeliveries);
+
+    // 3. Hitung ulang total kiriman, retur & sisa PO induk
+    const poDels = updatedDeliveries.filter(d => d.poId === returItem.id);
+    const totalKiriman = poDels.filter(d => d.qtyKirim > 0).reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalRetur = poDels.filter(d => d.qtyKirim < 0).reduce((sum, d) => sum + Math.abs(d.qtyKirim), 0);
+    const uniqueRefs = Array.from(new Set(poDels.map(d => d.noReff).filter(Boolean))).join(', ');
+    
+    // Cari tanggal kirim terbaru
+    const sortedPoDels = [...poDels].sort((a, b) => new Date(b.tanggalKirim) - new Date(a.tanggalKirim));
+    const latestTglKirim = sortedPoDels.length > 0 ? sortedPoDels[0].tanggalKirim : '';
+
+    const updatedPOs = data.map(item => {
+      if (item.id === returItem.id) {
+        return {
+          ...item,
+          kiriman: totalKiriman,
+          kirimanAwal: totalKiriman,
+          retur: totalRetur,
+          sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman + totalRetur),
+          noReff: uniqueRefs,
+          tanggalKirim: latestTglKirim || item.tanggalKirim
+        };
+      }
+      return item;
+    });
+
+    setData(updatedPOs);
+    await storageAPI.saveOutstandingPOs(updatedPOs);
+
+    setIsReturModalOpen(false);
+    setReturItem(null);
+    setNewReturVal(0);
     setNewNoReffVal('');
     setNewTanggalKirimVal(new Date().toISOString().split('T')[0]);
   };
@@ -397,7 +457,7 @@ export default function Outstanding({ user }) {
 
 
   const handleDeleteDelivery = async (deliveryId, poId) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus pengiriman ini?")) return;
+    if (!window.confirm("Apakah Anda yakin ingin menghapus pengiriman/retur ini?")) return;
 
     // 1. Filter out the deleted delivery
     const updatedDeliveries = deliveries.filter(d => d.id !== deliveryId);
@@ -406,7 +466,8 @@ export default function Outstanding({ user }) {
 
     // 2. Recalculate parent PO metrics
     const poDels = updatedDeliveries.filter(d => d.poId === poId);
-    const totalKiriman = poDels.reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalKiriman = poDels.filter(d => d.qtyKirim > 0).reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalRetur = poDels.filter(d => d.qtyKirim < 0).reduce((sum, d) => sum + Math.abs(d.qtyKirim), 0);
     const childRefs = poDels.map(d => d.noReff).filter(Boolean);
     const uniqueRefs = Array.from(new Set(childRefs)).join(', ');
     
@@ -419,7 +480,8 @@ export default function Outstanding({ user }) {
           ...item,
           kiriman: totalKiriman,
           kirimanAwal: totalKiriman,
-          sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman),
+          retur: totalRetur,
+          sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman + totalRetur),
           noReff: uniqueRefs,
           tanggalKirim: latestTglKirim
         };
@@ -435,8 +497,8 @@ export default function Outstanding({ user }) {
   };
 
   const handleUpdateDelivery = async (deliveryId, poId) => {
-    if (!editDeliveryDraft.qtyKirim || Number(editDeliveryDraft.qtyKirim) < 0) {
-      alert('Qty Kirim tidak boleh kosong atau negatif.');
+    if (!editDeliveryDraft.qtyKirim || Number(editDeliveryDraft.qtyKirim) === 0) {
+      alert('Kuantitas tidak boleh kosong atau nol.');
       return;
     }
 
@@ -458,7 +520,8 @@ export default function Outstanding({ user }) {
 
     // 2. Recalculate parent PO metrics
     const poDels = updatedDeliveries.filter(d => d.poId === poId);
-    const totalKiriman = poDels.reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalKiriman = poDels.filter(d => d.qtyKirim > 0).reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalRetur = poDels.filter(d => d.qtyKirim < 0).reduce((sum, d) => sum + Math.abs(d.qtyKirim), 0);
     const childRefs = poDels.map(d => d.noReff).filter(Boolean);
     const uniqueRefs = Array.from(new Set(childRefs)).join(', ');
     const sortedPoDels = [...poDels].sort((a, b) => new Date(b.tanggalKirim) - new Date(a.tanggalKirim));
@@ -470,7 +533,8 @@ export default function Outstanding({ user }) {
           ...item,
           kiriman: totalKiriman,
           kirimanAwal: totalKiriman,
-          sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman),
+          retur: totalRetur,
+          sisaPo: Math.max(0, Number(item.jumlahPo) - totalKiriman + totalRetur),
           noReff: uniqueRefs,
           tanggalKirim: latestTglKirim
         };
@@ -831,8 +895,9 @@ export default function Outstanding({ user }) {
   const getBatchSummary = (batchName, items) => {
     const totalPo = items.reduce((acc, item) => acc + Number(item.jumlahPo || 0), 0);
     const totalKiriman = items.reduce((acc, item) => acc + Number(item.kiriman || 0), 0);
+    const totalRetur = items.reduce((acc, item) => acc + Number(item.retur || 0), 0);
     const totalSisa = items.reduce((acc, item) => acc + Number(item.sisaPo || 0), 0);
-    return { totalPo, totalKiriman, totalSisa };
+    return { totalPo, totalKiriman, totalRetur, totalSisa };
   };
 
   return (
@@ -1028,17 +1093,22 @@ export default function Outstanding({ user }) {
             
             <div className="flex gap-6 w-full sm:w-auto">
               <div className="text-center sm:text-right flex-1 sm:flex-none">
-                <span className="text-[10px] text-slate-450 font-bold block uppercase tracking-wider">Total PO</span>
+                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Total PO</span>
                 <span className="text-base font-black text-slate-700">{getBatchSummary(selectedBatch, batches[selectedBatch] || []).totalPo.toLocaleString('id-ID')}</span>
               </div>
               <div className="w-px h-10 bg-slate-200 hidden sm:block"></div>
               <div className="text-center sm:text-right flex-1 sm:flex-none">
-                <span className="text-[10px] text-slate-450 font-bold block uppercase tracking-wider">Terkirim</span>
+                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Terkirim</span>
                 <span className="text-base font-black text-emerald-600">{getBatchSummary(selectedBatch, batches[selectedBatch] || []).totalKiriman.toLocaleString('id-ID')}</span>
               </div>
               <div className="w-px h-10 bg-slate-200 hidden sm:block"></div>
               <div className="text-center sm:text-right flex-1 sm:flex-none">
-                <span className="text-[10px] text-slate-450 font-bold block uppercase tracking-wider">Sisa PO (Outstanding)</span>
+                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Retur</span>
+                <span className="text-base font-black text-amber-600">{getBatchSummary(selectedBatch, batches[selectedBatch] || []).totalRetur.toLocaleString('id-ID')}</span>
+              </div>
+              <div className="w-px h-10 bg-slate-200 hidden sm:block"></div>
+              <div className="text-center sm:text-right flex-1 sm:flex-none">
+                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Sisa PO (Outstanding)</span>
                 <span className="text-base font-black text-indigo-650">{getBatchSummary(selectedBatch, batches[selectedBatch] || []).totalSisa.toLocaleString('id-ID')}</span>
               </div>
             </div>
@@ -1113,6 +1183,19 @@ export default function Outstanding({ user }) {
                             >
                               <Send className="w-3 h-3" />
                               <span>Kirim</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setReturItem(item);
+                                setNewNoReffVal(item.noReff || '');
+                                setNewReturVal(0);
+                                setIsReturModalOpen(true);
+                              }}
+                              className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-650 hover:text-amber-700 font-bold py-1 px-2 rounded-lg text-xs transition-colors cursor-pointer"
+                              title="Input Retur Pallet"
+                            >
+                              <Undo className="w-3 h-3" />
+                              <span>Retur</span>
                             </button>
                             <button
                               onClick={() => {
@@ -1776,7 +1859,97 @@ export default function Outstanding({ user }) {
         </div>
       )}
 
+      {/* Modal: Input Retur Baru */}
+      {isReturModalOpen && returItem && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-amber-650 px-5 py-4 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-sm">Input Retur Pallet</h3>
+                <p className="text-[10px] text-amber-200">{returItem.nomorPo} - {returItem.customer}</p>
+              </div>
+              <button onClick={() => setIsReturModalOpen(false)} className="p-1 hover:bg-white/10 rounded-full text-white transition-colors">
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
 
+            <form onSubmit={handleAddRetur} className="p-5 space-y-4">
+              <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Total Jumlah PO:</span>
+                  <span className="font-bold text-slate-700">{returItem.jumlahPo.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Terkirim Saat Ini (Total):</span>
+                  <span className="font-bold text-emerald-650">{returItem.kiriman.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Retur Saat Ini (Total):</span>
+                  <span className="font-bold text-amber-650">{(returItem.retur || 0).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="w-full h-px bg-amber-100/50 my-1"></div>
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-500">Sisa Outstanding:</span>
+                  <span className="font-black text-indigo-650">{returItem.sisaPo.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">Tanggal Retur</label>
+                <input
+                  type="date"
+                  required
+                  value={newTanggalKirimVal}
+                  onChange={(e) => setNewTanggalKirimVal(e.target.value)}
+                  className="w-full text-sm p-2.5 rounded-xl border border-slate-200 focus:outline-amber-600 font-bold text-slate-700 bg-slate-50/30"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Qty Retur Baru</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={newReturVal || ''}
+                    onChange={(e) => setNewReturVal(Number(e.target.value))}
+                    placeholder="Jumlah..."
+                    className="w-full text-sm p-2.5 rounded-xl border border-slate-200 focus:outline-amber-600 font-extrabold text-amber-650 bg-slate-50/30"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">No. Reff</label>
+                  <input
+                    type="text"
+                    value={newNoReffVal}
+                    onChange={(e) => setNewNoReffVal(e.target.value)}
+                    placeholder="Contoh: RJ-001"
+                    className="w-full text-sm p-2.5 rounded-xl border border-slate-200 focus:outline-amber-600 font-bold text-slate-700 bg-slate-50/30"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsReturModalOpen(false)}
+                  className="px-3.5 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4.5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Undo className="w-3 h-3" />
+                  <span>Retur</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Rincian Pengiriman (History) */}
       {isHistoryModalOpen && historyItem && (
@@ -1802,7 +1975,7 @@ export default function Outstanding({ user }) {
 
             <div className="overflow-y-auto flex-1 p-6 space-y-4">
               {/* Info PO */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 text-xs">
                 <div>
                   <span className="text-slate-400 block font-bold uppercase tracking-wider text-[9px]">Ukuran</span>
                   <span className="font-bold text-slate-700">{historyItem.ukuran}</span>
@@ -1816,8 +1989,12 @@ export default function Outstanding({ user }) {
                   <span className="font-bold text-emerald-600">{historyItem.kiriman.toLocaleString('id-ID')} Pcs</span>
                 </div>
                 <div>
+                  <span className="text-slate-400 block font-bold uppercase tracking-wider text-[9px]">Retur</span>
+                  <span className="font-bold text-amber-600">{(historyItem.retur || 0).toLocaleString('id-ID')} Pcs</span>
+                </div>
+                <div>
                   <span className="text-slate-400 block font-bold uppercase tracking-wider text-[9px]">Sisa PO</span>
-                  <span className="font-bold text-indigo-650">{historyItem.sisaPo.toLocaleString('id-ID')} Pcs</span>
+                  <span className="font-bold text-indigo-650">{(historyItem.sisaPo || 0).toLocaleString('id-ID')} Pcs</span>
                 </div>
               </div>
 
@@ -1827,25 +2004,27 @@ export default function Outstanding({ user }) {
                   <thead>
                     <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200">
                       <th className="px-4 py-3 text-center w-12">No</th>
-                      <th className="px-4 py-3">Tanggal Kirim</th>
+                      <th className="px-4 py-3">Tanggal</th>
+                      <th className="px-4 py-3">Tipe</th>
                       <th className="px-4 py-3">No. Reff / SJ</th>
-                      <th className="px-4 py-3 text-right">Qty Kirim</th>
+                      <th className="px-4 py-3 text-right">Qty</th>
                       <th className="px-4 py-3 text-center w-16">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {deliveries.filter(d => d.poId === historyItem.id).length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="px-4 py-8 text-center text-slate-450 font-medium">
-                          Belum ada riwayat pengiriman untuk PO ini.
+                        <td colSpan="6" className="px-4 py-8 text-center text-slate-450 font-medium">
+                          Belum ada riwayat pengiriman/retur untuk PO ini.
                         </td>
                       </tr>
                     ) : (
                       deliveries
                         .filter(d => d.poId === historyItem.id)
-                        .sort((a, b) => new Date(a.tanggalKirim) - new Date(b.tanggalKirim))
+                        .sort((a, b) => new Date(b.tanggalKirim) - new Date(a.tanggalKirim))
                         .map((delivery, idx) => {
                           const isEditing = editingDeliveryId === delivery.id;
+                          const isRetur = delivery.qtyKirim < 0;
                           return isEditing ? (
                             /* ── Edit Row ── */
                             <tr key={delivery.id} className="bg-indigo-50/40">
@@ -1857,6 +2036,22 @@ export default function Outstanding({ user }) {
                                   onChange={e => setEditDeliveryDraft(prev => ({ ...prev, tanggalKirim: e.target.value }))}
                                   className="w-full text-xs p-1.5 rounded-lg border border-indigo-200 focus:outline-indigo-400"
                                 />
+                              </td>
+                              <td className="px-2 py-2">
+                                <select
+                                  value={editDeliveryDraft.qtyKirim < 0 ? 'retur' : 'kirim'}
+                                  onChange={e => {
+                                    const selectRetur = e.target.value === 'retur';
+                                    setEditDeliveryDraft(prev => ({
+                                      ...prev,
+                                      qtyKirim: selectRetur ? -Math.abs(prev.qtyKirim) : Math.abs(prev.qtyKirim)
+                                    }));
+                                  }}
+                                  className="w-full text-xs p-1.5 rounded-lg border border-indigo-200 focus:outline-indigo-400 font-bold"
+                                >
+                                  <option value="kirim">Kirim</option>
+                                  <option value="retur">Retur</option>
+                                </select>
                               </td>
                               <td className="px-2 py-2">
                                 <input
@@ -1871,9 +2066,16 @@ export default function Outstanding({ user }) {
                                 <input
                                   type="number"
                                   min="1"
-                                  value={editDeliveryDraft.qtyKirim}
-                                  onChange={e => setEditDeliveryDraft(prev => ({ ...prev, qtyKirim: Number(e.target.value) }))}
-                                  className="w-full text-xs p-1.5 rounded-lg border border-indigo-200 focus:outline-indigo-400 font-bold text-right text-emerald-700"
+                                  value={Math.abs(editDeliveryDraft.qtyKirim) || ''}
+                                  onChange={e => {
+                                    const val = Number(e.target.value);
+                                    const draftRetur = editDeliveryDraft.qtyKirim < 0;
+                                    setEditDeliveryDraft(prev => ({
+                                      ...prev,
+                                      qtyKirim: draftRetur ? -val : val
+                                    }));
+                                  }}
+                                  className="w-full text-xs p-1.5 rounded-lg border border-indigo-200 focus:outline-indigo-400 font-bold text-right text-slate-700"
                                 />
                               </td>
                               <td className="px-2 py-2 text-center">
@@ -1903,8 +2105,13 @@ export default function Outstanding({ user }) {
                             <tr key={delivery.id} className="hover:bg-slate-50/50">
                               <td className="px-4 py-2.5 text-center font-bold text-slate-400">{idx + 1}</td>
                               <td className="px-4 py-2.5 font-medium">{delivery.tanggalKirim}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${isRetur ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                  {isRetur ? 'Retur' : 'Kirim'}
+                                </span>
+                              </td>
                               <td className="px-4 py-2.5 font-mono font-bold text-slate-600">{delivery.noReff || '-'}</td>
-                              <td className="px-4 py-2.5 text-right font-bold text-slate-800">{delivery.qtyKirim.toLocaleString('id-ID')}</td>
+                              <td className="px-4 py-2.5 text-right font-bold text-slate-800">{Math.abs(delivery.qtyKirim).toLocaleString('id-ID')}</td>
                               <td className="px-4 py-2.5 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <button

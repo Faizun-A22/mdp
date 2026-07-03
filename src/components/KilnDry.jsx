@@ -36,6 +36,7 @@ export default function KilnDry({ user }) {
 
   // Edit Item Trackers
   const [editingItem, setEditingItem] = useState(null);
+  const [completingQueueItem, setCompletingQueueItem] = useState(null);
 
   // Forms State
   const [formBelum, setFormBelum] = useState({
@@ -145,29 +146,40 @@ export default function KilnDry({ user }) {
   };
 
   const handleFinishKD = async (item) => {
-    const items = parseCustomerItems(item.customer, item.ukuran, item.qty);
-    const namesList = items.map(i => `${i.palletName} (${i.qty} pcs)`).join(', ');
-    if (window.confirm(`Selesaikan proses kiln dry untuk ${namesList}?`)) {
-      const newSetelah = {
-        id: 'kds_' + Date.now(),
-        tanggalMulai: item.tanggal,
-        tanggalSelesai: new Date().toISOString().split('T')[0],
-        customer: item.customer,
-        ukuran: item.ukuran,
-        qty: item.qty,
-        kd: 'KD 01',
-        hasil: 'Baik',
-        catatan: 'Diselesaikan dari antrean.'
-      };
-      
-      const updatedSetelah = [newSetelah, ...setelahKD];
-      setSetelahKD(updatedSetelah);
-      await storageAPI.saveKDSetelah(updatedSetelah);
-
-      const updatedBelum = belumKD.filter(i => i.id !== item.id);
-      setBelumKD(updatedBelum);
-      await storageAPI.saveKDBelum(updatedBelum);
+    let totalMinutes = 0;
+    if (item.monitoringLogs && item.monitoringLogs.length > 0) {
+      item.monitoringLogs.forEach(log => {
+        if (log.jamMulai && log.jamSelesai) {
+          const startParts = log.jamMulai.split(':');
+          const endParts = log.jamSelesai.split(':');
+          const startMin = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+          const endMin = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+          let diff = endMin - startMin;
+          if (diff < 0) diff += 24 * 60;
+          totalMinutes += diff;
+        }
+      });
     }
+    const totalHours = (totalMinutes / 60).toFixed(1);
+    const sessionDetail = item.monitoringLogs && item.monitoringLogs.length > 0
+      ? `Total ${totalHours} Jam (${item.monitoringLogs.map(l => `${l.jamMulai}-${l.jamSelesai}`).join(', ')})`
+      : 'Diselesaikan dari antrean.';
+
+    setCompletingQueueItem(item);
+    setFormSetelah({
+      tanggalMulai: item.tanggal,
+      tanggalSelesai: new Date().toISOString().split('T')[0],
+      customer: item.customer,
+      ukuran: item.ukuran,
+      qty: item.qty,
+      kd: 'KD 01',
+      hasil: '12%',
+      catatan: sessionDetail
+    });
+
+    const items = parseCustomerItems(item.customer, item.ukuran, item.qty);
+    setSetelahKDItems(items);
+    setIsSetelahModalOpen(true);
   };
 
   const handleBelumDelete = async (id) => {
@@ -234,6 +246,14 @@ export default function KilnDry({ user }) {
     }
     setSetelahKD(updated);
     await storageAPI.saveKDSetelah(updated);
+
+    if (completingQueueItem) {
+      const updatedBelum = belumKD.filter(i => i.id !== completingQueueItem.id);
+      setBelumKD(updatedBelum);
+      await storageAPI.saveKDBelum(updatedBelum);
+      setCompletingQueueItem(null);
+    }
+
     closeSetelahModal();
   };
 
@@ -255,6 +275,7 @@ export default function KilnDry({ user }) {
   const closeSetelahModal = () => {
     setIsSetelahModalOpen(false);
     setEditingItem(null);
+    setCompletingQueueItem(null);
     setFormSetelah({
       tanggalMulai: new Date().toISOString().split('T')[0],
       tanggalSelesai: new Date().toISOString().split('T')[0],
@@ -816,13 +837,19 @@ export default function KilnDry({ user }) {
                            </div>
                          </td>
                         <td className="py-4 px-4 text-center">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                            item.hasil === 'Baik' 
-                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
-                              : 'bg-rose-50 text-rose-600 border border-rose-100'
-                          }`}>
-                            {item.hasil}
-                          </span>
+                          {(() => {
+                            const mcNum = parseFloat(item.hasil);
+                            const isGood = !isNaN(mcNum) ? mcNum < 15 : (item.hasil?.toLowerCase().includes('baik') || false);
+                            return (
+                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                isGood 
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                                  : 'bg-rose-50 text-rose-600 border border-rose-100'
+                              }`}>
+                                {item.hasil}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="py-4 px-4 text-slate-500 text-xs max-w-xs truncate">{item.catatan || '-'}</td>
                         {isAdmin && (
@@ -1312,15 +1339,15 @@ export default function KilnDry({ user }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Hasil Kualitas</label>
-                  <select
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Hasil Kualitas (MC)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: 12% atau Baik"
                     value={formSetelah.hasil}
                     onChange={(e) => setFormSetelah({ ...formSetelah, hasil: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold cursor-pointer"
-                  >
-                    <option value="Baik">Baik (MC &lt; 15%)</option>
-                    <option value="Kurang">Kurang Kering</option>
-                  </select>
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                  />
                 </div>
               </div>
               <div>

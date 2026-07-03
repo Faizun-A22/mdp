@@ -285,22 +285,39 @@ const mapDbToStock = (s) => ({
   createdAt: s.created_at || ''
 });
 
-const mapKDBelumToDb = (k) => ({
-  id: k.id,
-  tanggal: k.tanggal,
-  customer: k.customer,
-  ukuran: k.ukuran,
-  qty: Number(k.qty || 0),
-  status: k.status
-});
-const mapDbToKDBelum = (k) => ({
-  id: k.id,
-  tanggal: k.tanggal,
-  customer: k.customer,
-  ukuran: k.ukuran,
-  qty: Number(k.qty || 0),
-  status: k.status
-});
+const mapKDBelumToDb = (k) => {
+  const logsStr = k.monitoringLogs && k.monitoringLogs.length > 0 ? JSON.stringify(k.monitoringLogs) : '';
+  return {
+    id: k.id,
+    tanggal: k.tanggal,
+    customer: k.customer,
+    ukuran: k.ukuran,
+    qty: Number(k.qty || 0),
+    status: logsStr ? `${k.status}||${logsStr}` : k.status
+  };
+};
+const mapDbToKDBelum = (k) => {
+  let status = k.status || 'Antri';
+  let monitoringLogs = [];
+  if (status.includes('||')) {
+    const parts = status.split('||');
+    status = parts[0];
+    try {
+      monitoringLogs = JSON.parse(parts[1]);
+    } catch (e) {
+      monitoringLogs = [];
+    }
+  }
+  return {
+    id: k.id,
+    tanggal: k.tanggal,
+    customer: k.customer,
+    ukuran: k.ukuran,
+    qty: Number(k.qty || 0),
+    status,
+    monitoringLogs
+  };
+};
 
 const mapKDSetelahToDb = (k) => ({
   id: k.id,
@@ -461,10 +478,17 @@ const mapDbToDelivery = (d) => ({
 const recalculatePOsWithMutasi = (pos, mutasiList, dels = []) => {
   // 1. Group deliveries by poId
   const delsByPoId = {};
+  const returByPoId = {};
   dels.forEach(d => {
     const poId = d.poId;
-    if (!delsByPoId[poId]) delsByPoId[poId] = 0;
-    delsByPoId[poId] += Number(d.qtyKirim || 0);
+    const qty = Number(d.qtyKirim || 0);
+    if (qty >= 0) {
+      if (!delsByPoId[poId]) delsByPoId[poId] = 0;
+      delsByPoId[poId] += qty;
+    } else {
+      if (!returByPoId[poId]) returByPoId[poId] = 0;
+      returByPoId[poId] += Math.abs(qty);
+    }
   });
 
   // 2. Group mutasi by customer (which is the pallet name/company name) and ukuran, summing pallet_keluar (out)
@@ -498,16 +522,18 @@ const recalculatePOsWithMutasi = (pos, mutasiList, dels = []) => {
     let totalOut = mutasiOutByGroup[key] || 0;
     poGroups[key].forEach(po => {
       // Base manual kiriman is either the sum of its deliveries, or po.kirimanAwal, or po.kiriman
-      const manualSum = delsByPoId[po.id];
-      const baseKiriman = manualSum !== undefined ? manualSum : Number(po.kirimanAwal !== undefined ? po.kirimanAwal : po.kiriman || 0);
+      const manualSum = delsByPoId[po.id] || 0;
+      const manualRetur = returByPoId[po.id] || 0;
+      const baseKiriman = manualSum;
       
       po.kirimanAwal = baseKiriman;
+      po.retur = manualRetur;
       
-      const maxAllocatable = Math.max(0, Number(po.jumlahPo) - Number(po.kirimanAwal));
+      const maxAllocatable = Math.max(0, Number(po.jumlahPo) - Number(po.kirimanAwal) + Number(po.retur));
       const allocated = Math.min(maxAllocatable, totalOut);
       
       po.kiriman = Number(po.kirimanAwal) + allocated;
-      po.sisaPo = Number(po.jumlahPo) - po.kiriman;
+      po.sisaPo = Number(po.jumlahPo) - po.kiriman + po.retur;
       totalOut -= allocated;
       
       updatedPOsMap[po.id] = po;
@@ -519,13 +545,15 @@ const recalculatePOsWithMutasi = (pos, mutasiList, dels = []) => {
     if (updatedPOsMap[po.id]) {
       return updatedPOsMap[po.id];
     }
-    const manualSum = delsByPoId[po.id];
-    const baseKiriman = manualSum !== undefined ? manualSum : Number(po.kirimanAwal !== undefined ? po.kirimanAwal : po.kiriman || 0);
+    const manualSum = delsByPoId[po.id] || 0;
+    const manualRetur = returByPoId[po.id] || 0;
+    const baseKiriman = manualSum;
     return {
       ...po,
       kirimanAwal: baseKiriman,
       kiriman: baseKiriman,
-      sisaPo: Number(po.jumlahPo || 0) - baseKiriman
+      retur: manualRetur,
+      sisaPo: Number(po.jumlahPo || 0) - baseKiriman + manualRetur
     };
   });
 };

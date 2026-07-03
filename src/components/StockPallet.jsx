@@ -32,6 +32,23 @@ export default function StockPallet({ user }) {
   const [mutasiSort, setMutasiSort] = useState({ key: 'tanggal', direction: 'desc' });
   const [jenisSort, setJenisSort] = useState({ key: 'nama', direction: 'asc' });
   const [selectedReportDate, setSelectedReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+
+  const [historyMonth, setHistoryMonth] = useState(new Date().getMonth() + 1);
+  const [historyYear, setHistoryYear] = useState(new Date().getFullYear());
+  const [historyPage, setHistoryPage] = useState(1);
+
+  useEffect(() => {
+    const lastDay = new Date(reportYear, reportMonth, 0).getDate();
+    const monthStr = String(reportMonth).padStart(2, '0');
+    const dayStr = String(lastDay).padStart(2, '0');
+    setSelectedReportDate(`${reportYear}-${monthStr}-${dayStr}`);
+  }, [reportMonth, reportYear]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historyMonth, historyYear, selectedRincianHistory]);
 
   // Form State - Transaction Mutasi
   const [formData, setFormData] = useState({
@@ -288,11 +305,9 @@ export default function StockPallet({ user }) {
 
   const downloadLaporanHarianGambar = () => {
     const today = new Date(selectedReportDate);
-    const hariNames  = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
     const bulanNames = ['Januari','Februari','Maret','April','Mei','Juni',
                         'Juli','Agustus','September','Oktober','November','Desember'];
-    const hariName   = hariNames[today.getDay()];
-    const tanggalStr = `${today.getDate()} ${bulanNames[today.getMonth()]} ${today.getFullYear()}`;
+    const tanggalStr = `${bulanNames[today.getMonth()]} ${today.getFullYear()}`;
     const fmtUkuran  = (u = '') => u.replace(/\s*mm\s*/gi,'').replace(/[xX]/g,'*').trim();
 
     let items = getPalletSummaryForDate(selectedReportDate).filter(item => item.currentStock > 0);
@@ -340,12 +355,12 @@ export default function StockPallet({ user }) {
 
     ctx.font      = 'bold 18px "Segoe UI", Arial, sans-serif';
     ctx.fillStyle = '#111827';
-    ctx.fillText('Pak Dedy, Berikut laporan stok pallet WH', PAD, y);
+    ctx.fillText('Pak Dedy, Berikut laporan bulanan stok pallet WH', PAD, y);
     y += 26;
 
     ctx.font      = '14px "Segoe UI", Arial, sans-serif';
     ctx.fillStyle = '#6B7280';
-    ctx.fillText(`Hari ${hariName}, ${tanggalStr} :`, PAD, y);
+    ctx.fillText(`Laporan Mutasi Pallet - Periode ${tanggalStr} :`, PAD, y);
     y += 20;
 
     // Header divider
@@ -409,9 +424,8 @@ export default function StockPallet({ user }) {
     );
 
     // Download
-    const todayStr = today.toISOString().split('T')[0];
     const link = document.createElement('a');
-    link.download = `Laporan_Stok_Pallet_${todayStr}.png`;
+    link.download = `Laporan_Stok_Pallet_${today.getFullYear()}_${String(today.getMonth() + 1).padStart(2, '0')}.png`;
     link.href     = canvas.toDataURL('image/png');
     link.click();
   };
@@ -425,9 +439,14 @@ export default function StockPallet({ user }) {
                         'Juli','Agustus','September','Oktober','November','Desember'];
     const hariName   = hariNames[today.getDay()];
     const tanggalStr = `${today.getDate()} ${bulanNames[today.getMonth()]} ${today.getFullYear()}`;
+    const periodStr = `${bulanNames[historyMonth - 1]} ${historyYear}`;
 
     let historyData = data
       .filter(d => d.customer === selectedRincianHistory.nama && d.ukuran === selectedRincianHistory.ukuran)
+      .filter(d => {
+        const dDate = new Date(d.tanggal);
+        return (dDate.getMonth() + 1) === historyMonth && dDate.getFullYear() === historyYear;
+      })
       .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
 
     const W = 1122; // A4 landscape
@@ -560,10 +579,8 @@ export default function StockPallet({ user }) {
     ctx.strokeStyle = '#E2E8F0';
     ctx.strokeRect(PAD, 100, W - PAD * 2, y - 100);
 
-    // Download
-    const todayStr2 = today.toISOString().split('T')[0];
     const link2 = document.createElement('a');
-    link2.download = `History_Mutasi_${selectedRincianHistory.nama.replace(/\s+/g, '_')}_${todayStr2}.png`;
+    link2.download = `History_Mutasi_${selectedRincianHistory.nama.replace(/\s+/g, '_')}_${historyYear}_${String(historyMonth).padStart(2, '0')}.png`;
     link2.href     = canvas.toDataURL('image/png');
     link2.click();
   };
@@ -1089,12 +1106,36 @@ export default function StockPallet({ user }) {
               <p className="text-xs text-slate-500 mt-0.5">Akumulasi jumlah stok pallet terkini berdasarkan data transaksi mutasi yang tercatat</p>
             </div>
             <div className="flex gap-2">
-              <input 
-                type="date" 
-                value={selectedReportDate}
-                onChange={(e) => setSelectedReportDate(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium focus:outline-none focus:border-indigo-500"
-              />
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm">
+                <select
+                  value={reportMonth}
+                  onChange={(e) => setReportMonth(Number(e.target.value))}
+                  className="bg-transparent text-slate-700 text-sm font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value={1}>Januari</option>
+                  <option value={2}>Februari</option>
+                  <option value={3}>Maret</option>
+                  <option value={4}>April</option>
+                  <option value={5}>Mei</option>
+                  <option value={6}>Juni</option>
+                  <option value={7}>Juli</option>
+                  <option value={8}>Agustus</option>
+                  <option value={9}>September</option>
+                  <option value={10}>Oktober</option>
+                  <option value={11}>November</option>
+                  <option value={12}>Desember</option>
+                </select>
+                <span className="text-slate-300 font-medium">|</span>
+                <select
+                  value={reportYear}
+                  onChange={(e) => setReportYear(Number(e.target.value))}
+                  className="bg-transparent text-slate-700 text-sm font-semibold focus:outline-none cursor-pointer"
+                >
+                  {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 3 + i).map(yr => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
+                </select>
+              </div>
               <button
                 onClick={downloadLaporanHarianGambar}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
@@ -1673,17 +1714,49 @@ export default function StockPallet({ user }) {
       {selectedRincianHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden my-8 flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 border-b border-slate-100 bg-slate-50 gap-4">
               <div>
                 <h3 className="text-xl font-extrabold text-slate-800">History Mutasi Pallet</h3>
                 <p className="text-sm font-semibold text-slate-500 mt-1">
                   {selectedRincianHistory.nama} — <span className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{selectedRincianHistory.ukuran}</span>
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Month/Year Filter */}
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm">
+                  <select
+                    value={historyMonth}
+                    onChange={(e) => setHistoryMonth(Number(e.target.value))}
+                    className="bg-transparent text-slate-700 text-xs font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value={1}>Januari</option>
+                    <option value={2}>Februari</option>
+                    <option value={3}>Maret</option>
+                    <option value={4}>April</option>
+                    <option value={5}>Mei</option>
+                    <option value={6}>Juni</option>
+                    <option value={7}>Juli</option>
+                    <option value={8}>Agustus</option>
+                    <option value={9}>September</option>
+                    <option value={10}>Oktober</option>
+                    <option value={11}>November</option>
+                    <option value={12}>Desember</option>
+                  </select>
+                  <span className="text-slate-200 font-medium">|</span>
+                  <select
+                    value={historyYear}
+                    onChange={(e) => setHistoryYear(Number(e.target.value))}
+                    className="bg-transparent text-slate-700 text-xs font-bold focus:outline-none cursor-pointer"
+                  >
+                    {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 3 + i).map(yr => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   onClick={downloadHistoryMutasiGambar}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold transition-all text-xs"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold transition-all text-xs cursor-pointer"
                 >
                   <Download className="w-4 h-4" /> Download (PNG)
                 </button>
@@ -1692,53 +1765,151 @@ export default function StockPallet({ user }) {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-auto p-6 bg-white">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap">
-                    <th className="py-3 px-4">Tanggal</th>
-                    <th className="py-3 px-4 text-center">Stok Awal</th>
-                    <th className="py-3 px-4 text-center">Produksi</th>
-                    <th className="py-3 px-4 text-center">In: Lumajang</th>
-                    <th className="py-3 px-4 text-center">In: Subcont</th>
-                    <th className="py-3 px-4 text-center">Out: Kirim</th>
-                    <th className="py-3 px-4 text-center">Retur: LMJ (WS)</th>
-                    <th className="py-3 px-4 text-center">Retur: Cust</th>
-                    <th className="py-3 px-4 text-center font-extrabold">Total Stok</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
-                  {data
-                    .filter(d => d.customer === selectedRincianHistory.nama && d.ukuran === selectedRincianHistory.ukuran)
-                    .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal))
-                    .map((item, idx) => {
-                      const totalStock = calculateTotalStock(item);
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50/80 transition-all whitespace-nowrap">
-                          <td className="py-3 px-4 text-slate-500">
-                            {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </td>
-                          <td className="py-3 px-4 text-center text-slate-500">{item.stockAwal}</td>
-                          <td className="py-3 px-4 text-center text-indigo-600 font-bold">{item.produksi > 0 ? `+${item.produksi}` : '-'}</td>
-                          <td className="py-3 px-4 text-center text-blue-600 font-bold">{item.dariLumajang > 0 ? `+${item.dariLumajang}` : '-'}</td>
-                          <td className="py-3 px-4 text-center text-cyan-600 font-bold">{item.dariSubcont > 0 ? `+${item.dariSubcont}` : '-'}</td>
-                          <td className="py-3 px-4 text-center text-rose-600 font-bold">{item.palletKeluar > 0 ? `-${item.palletKeluar}` : '-'}</td>
-                          <td className="py-3 px-4 text-center text-amber-600 font-bold">{item.returLumajang > 0 ? `-${item.returLumajang}` : '-'}</td>
-                          <td className="py-3 px-4 text-center text-emerald-600 font-bold">{item.returCustomer > 0 ? `+${item.returCustomer}` : '-'}</td>
-                          <td className="py-3 px-4 text-center font-extrabold text-indigo-700 bg-indigo-50/30">
-                            {totalStock}
-                          </td>
+            
+            {(() => {
+              const filteredHistory = data
+                .filter(d => d.customer === selectedRincianHistory.nama && d.ukuran === selectedRincianHistory.ukuran)
+                .filter(d => {
+                  const dDate = new Date(d.tanggal);
+                  return (dDate.getMonth() + 1) === historyMonth && dDate.getFullYear() === historyYear;
+                })
+                .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+
+              const HISTORY_ROWS_PER_PAGE = 5;
+              const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_ROWS_PER_PAGE));
+              const paginatedHistory = filteredHistory.slice((historyPage - 1) * HISTORY_ROWS_PER_PAGE, historyPage * HISTORY_ROWS_PER_PAGE);
+
+              return (
+                <div className="flex-1 overflow-auto p-6 bg-white flex flex-col gap-4">
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap">
+                          <th className="py-3 px-4">Tanggal</th>
+                          <th className="py-3 px-4 text-center">Stok Awal</th>
+                          <th className="py-3 px-4 text-center">Produksi</th>
+                          <th className="py-3 px-4 text-center">Masuk (In)</th>
+                          <th className="py-3 px-4 text-center">Kirim (Out)</th>
+                          <th className="py-3 px-4 text-center">Retur</th>
+                          <th className="py-3 px-4 text-center font-extrabold">Total Stok</th>
                         </tr>
-                      );
-                    })}
-                  {data.filter(d => d.customer === selectedRincianHistory.nama && d.ukuran === selectedRincianHistory.ukuran).length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="py-10 text-center text-slate-400">Tidak ada history transaksi.</td>
-                    </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
+                        {paginatedHistory.map((item, idx) => {
+                          const totalStock = calculateTotalStock(item);
+                          
+                          // Format Masuk (In) column
+                          let masukStr = '-';
+                          if (item.dariLumajang > 0 && item.dariSubcont > 0) {
+                            masukStr = `LMJ: +${item.dariLumajang} / SBC: +${item.dariSubcont}`;
+                          } else if (item.dariLumajang > 0) {
+                            masukStr = `LMJ: +${item.dariLumajang}`;
+                          } else if (item.dariSubcont > 0) {
+                            masukStr = `SBC: +${item.dariSubcont}`;
+                          }
+
+                          // Format Retur column
+                          let returStr = '-';
+                          if (item.returCustomer > 0 && item.returLumajang > 0) {
+                            returStr = `Cust: +${item.returCustomer} / LMJ: -${item.returLumajang}`;
+                          } else if (item.returCustomer > 0) {
+                            returStr = `Cust: +${item.returCustomer}`;
+                          } else if (item.returLumajang > 0) {
+                            returStr = `LMJ: -${item.returLumajang}`;
+                          }
+
+                          return (
+                            <tr key={item.id} className="hover:bg-slate-50/80 transition-all whitespace-nowrap">
+                              <td className="py-3 px-4 text-slate-500">
+                                {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </td>
+                              <td className="py-3 px-4 text-center text-slate-500">{item.stockAwal}</td>
+                              <td className="py-3 px-4 text-center text-indigo-650 font-bold">{item.produksi > 0 ? `+${item.produksi}` : '-'}</td>
+                              <td className="py-3 px-4 text-center text-blue-650 font-bold">{masukStr}</td>
+                              <td className="py-3 px-4 text-center text-rose-600 font-bold">{item.palletKeluar > 0 ? `-${item.palletKeluar}` : '-'}</td>
+                              <td className="py-3 px-4 text-center text-amber-600 font-bold">{returStr}</td>
+                              <td className="py-3 px-4 text-center font-extrabold text-indigo-700 bg-indigo-50/30">
+                                {totalStock}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredHistory.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="py-10 text-center text-slate-400">Tidak ada history transaksi pada bulan & tahun ini.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {filteredHistory.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 pt-4 border-t border-slate-100 flex-shrink-0">
+                      <span className="text-xs text-slate-400 font-semibold">
+                        Menampilkan {Math.min((historyPage - 1) * HISTORY_ROWS_PER_PAGE + 1, filteredHistory.length)}–{Math.min(historyPage * HISTORY_ROWS_PER_PAGE, filteredHistory.length)} dari {filteredHistory.length} baris
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setHistoryPage(1)}
+                          disabled={historyPage === 1}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold disabled:opacity-40 hover:bg-slate-50 transition-all cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          «
+                        </button>
+                        <button
+                          onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                          disabled={historyPage === 1}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold disabled:opacity-40 hover:bg-slate-50 transition-all cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          ‹
+                        </button>
+
+                        {Array.from({ length: historyTotalPages }, (_, i) => i + 1)
+                          .filter(p => p === 1 || p === historyTotalPages || (p >= historyPage - 1 && p <= historyPage + 1))
+                          .reduce((acc, p, idx, arr) => {
+                            if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                            acc.push(p);
+                            return acc;
+                          }, [])
+                          .map((p, idx) =>
+                            p === '...' ? (
+                              <span key={`ellipsis-${idx}`} className="px-2 text-slate-400 text-xs font-bold">…</span>
+                            ) : (
+                              <button
+                                key={p}
+                                onClick={() => setHistoryPage(p)}
+                                className={`min-w-[30px] px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                                  historyPage === p
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            )
+                          )
+                        }
+
+                        <button
+                          onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
+                          disabled={historyPage === historyTotalPages}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold disabled:opacity-40 hover:bg-slate-50 transition-all cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          ›
+                        </button>
+                        <button
+                          onClick={() => setHistoryPage(historyTotalPages)}
+                          disabled={historyPage === historyTotalPages}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold disabled:opacity-40 hover:bg-slate-50 transition-all cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          »
+                        </button>
+                      </div>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
