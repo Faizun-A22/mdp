@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { storageAPI } from '../utils/storage';
-import { Plus, Search, ChevronDown, Trash2, Edit3, X, Filter, Download, Check, RefreshCw, Link, Loader2, AlertCircle, ArrowUpDown } from 'lucide-react';
+import { Plus, Search, ChevronDown, Trash2, Edit3, X, Filter, Download, Check, RefreshCw, Link, Loader2, AlertCircle, ArrowUpDown, Calendar } from 'lucide-react';
 
 export default function StockPallet({ user }) {
   const [data, setData] = useState([]);
@@ -49,6 +49,23 @@ export default function StockPallet({ user }) {
   useEffect(() => {
     setHistoryPage(1);
   }, [historyMonth, historyYear, selectedRincianHistory]);
+
+  const [filterMonth, setFilterMonth] = useState('all');
+  const [filterYear, setFilterYear] = useState('all');
+
+  const getUniqueYears = () => {
+    const years = new Set();
+    data.forEach(item => {
+      if (item.tanggal) {
+        const y = item.tanggal.substring(0, 4);
+        if (y && !isNaN(Number(y))) {
+          years.add(y);
+        }
+      }
+    });
+    years.add(new Date().getFullYear().toString());
+    return Array.from(years).sort((a, b) => b - a);
+  };
 
   // Form State - Transaction Mutasi
   const [formData, setFormData] = useState({
@@ -142,7 +159,7 @@ export default function StockPallet({ user }) {
       
       let currentStock = 0;
       group.forEach((item, index) => {
-        if (index === 0) {
+        if (index === 0 || item.subcontNama === 'OPNAME') {
           currentStock = Number(item.stockAwal || 0);
         } else {
           item.stockAwal = currentStock;
@@ -216,30 +233,45 @@ export default function StockPallet({ user }) {
     const targetDate = new Date(targetDateStr);
     targetDate.setHours(23, 59, 59, 999);
 
+    const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
     return palletTypes.map(type => {
-      const typeTransactions = data.filter(
+      const allTxUpToDate = data.filter(
         item => item.customer === type.nama && 
                 item.ukuran === type.ukuran && 
                 new Date(item.tanggal) <= targetDate
       );
 
-      const totalTx = typeTransactions.length;
-      const totalProduksi = typeTransactions.reduce((acc, item) => acc + Number(item.produksi || 0), 0);
-      const totalInLumajang = typeTransactions.reduce((acc, item) => acc + Number(item.dariLumajang || 0), 0);
-      const totalInSubcont = typeTransactions.reduce((acc, item) => acc + Number(item.dariSubcont || 0), 0);
-      const totalOutKirim = typeTransactions.reduce((acc, item) => acc + Number(item.palletKeluar || 0), 0);
-      const totalReturLmj = typeTransactions.reduce((acc, item) => acc + Number(item.returLumajang || 0), 0);
-      const totalReturCust = typeTransactions.reduce((acc, item) => acc + Number(item.returCustomer || 0), 0);
+      const monthTransactions = data.filter(
+        item => item.customer === type.nama && 
+                item.ukuran === type.ukuran && 
+                new Date(item.tanggal) >= startOfMonth &&
+                new Date(item.tanggal) <= targetDate
+      );
+
+      const totalTx = monthTransactions.length;
+      const totalProduksi = monthTransactions.reduce((acc, item) => acc + Number(item.produksi || 0), 0);
+      const totalInLumajang = monthTransactions.reduce((acc, item) => acc + Number(item.dariLumajang || 0), 0);
+      const totalInSubcont = monthTransactions.reduce((acc, item) => acc + Number(item.dariSubcont || 0), 0);
+      const totalOutKirim = monthTransactions.reduce((acc, item) => acc + Number(item.palletKeluar || 0), 0);
+      const totalReturLmj = monthTransactions.reduce((acc, item) => acc + Number(item.returLumajang || 0), 0);
+      const totalReturCust = monthTransactions.reduce((acc, item) => acc + Number(item.returCustomer || 0), 0);
 
       let currentStock = 0;
-      if (typeTransactions.length > 0) {
-        // Sort ascending by date to find the earliest transactions
-        const sortedAsc = [...typeTransactions].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+      if (allTxUpToDate.length > 0) {
+        const sortedAsc = [...allTxUpToDate].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
         const earliestDate = sortedAsc[0].tanggal;
-        // Find the maximum stockAwal among all transactions on the earliest date
         const baseStock = Math.max(...sortedAsc.filter(t => t.tanggal === earliestDate).map(t => Number(t.stockAwal || 0)));
-        // Sum all activity algebraically
-        currentStock = baseStock + totalProduksi + totalInLumajang + totalInSubcont + totalReturCust - totalOutKirim - totalReturLmj;
+        
+        const histProduksi = allTxUpToDate.reduce((acc, item) => acc + Number(item.produksi || 0), 0);
+        const histInLumajang = allTxUpToDate.reduce((acc, item) => acc + Number(item.dariLumajang || 0), 0);
+        const histInSubcont = allTxUpToDate.reduce((acc, item) => acc + Number(item.dariSubcont || 0), 0);
+        const histOutKirim = allTxUpToDate.reduce((acc, item) => acc + Number(item.palletKeluar || 0), 0);
+        const histReturLmj = allTxUpToDate.reduce((acc, item) => acc + Number(item.returLumajang || 0), 0);
+        const histReturCust = allTxUpToDate.reduce((acc, item) => acc + Number(item.returCustomer || 0), 0);
+
+        currentStock = baseStock + histProduksi + histInLumajang + histInSubcont + histReturCust - histOutKirim - histReturLmj;
       }
 
       return {
@@ -373,12 +405,11 @@ export default function StockPallet({ user }) {
     const COL_GAP   = 32;
     const COL2_X    = PAD + COL_W + COL_GAP;
 
-    // No truncation needed because height is dynamic
     const visible = items;
 
     visible.forEach((item, idx) => {
-      const col   = idx % 2;           // 0 = left, 1 = right
-      const row   = Math.floor(idx / 2);
+      const col   = idx < numRows ? 0 : 1;
+      const row   = idx < numRows ? idx : idx - numRows;
       const x     = col === 0 ? PAD : COL2_X;
       const itemY = y + row * ITEM_H;
 
@@ -397,12 +428,12 @@ export default function StockPallet({ user }) {
       ctx.fillStyle = '#374151';
       ctx.fillText(`stok wh ${item.currentStock}`, x + 24, itemY + 30);
 
-      // Light separator line every 2 items (row separator)
-      if (col === 1 && row < Math.ceil(visible.length / 2) - 1) {
+      // Light separator line under each item in the column (except the last one)
+      if (row < numRows - 1) {
         ctx.strokeStyle = '#F3F4F6'; ctx.lineWidth = 0.8;
         ctx.beginPath();
-        ctx.moveTo(PAD, itemY + ITEM_H - 2);
-        ctx.lineTo(W - PAD, itemY + ITEM_H - 2);
+        ctx.moveTo(x, itemY + ITEM_H - 2);
+        ctx.lineTo(x + COL_W, itemY + ITEM_H - 2);
         ctx.stroke();
       }
     });
@@ -750,7 +781,18 @@ export default function StockPallet({ user }) {
     const matchesSearch = item.customer.toLowerCase().includes(search.toLowerCase()) || 
                           item.ukuran.toLowerCase().includes(search.toLowerCase());
     const matchesSize = selectedSize === 'Semua' || item.ukuran === selectedSize;
-    return matchesSearch && matchesSize;
+    
+    let matchesMonth = true;
+    if (filterMonth !== 'all' && item.tanggal) {
+      matchesMonth = item.tanggal.substring(5, 7) === filterMonth;
+    }
+    
+    let matchesYear = true;
+    if (filterYear !== 'all' && item.tanggal) {
+      matchesYear = item.tanggal.substring(0, 4) === filterYear;
+    }
+    
+    return matchesSearch && matchesSize && matchesMonth && matchesYear;
   });
 
   const sortedMutasiData = [...filteredData].sort((a, b) => {
@@ -919,6 +961,51 @@ export default function StockPallet({ user }) {
                 </select>
                 <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+
+              {/* Filter Bulan */}
+              <div className="relative flex-1 md:flex-initial">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <Calendar className="w-4 h-4" />
+                </span>
+                <select
+                  value={filterMonth}
+                  onChange={(e) => { setFilterMonth(e.target.value); setCurrentPage(1); }}
+                  className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm appearance-none cursor-pointer font-medium"
+                >
+                  <option value="all">Semua Bulan</option>
+                  <option value="01">Januari</option>
+                  <option value="02">Februari</option>
+                  <option value="03">Maret</option>
+                  <option value="04">April</option>
+                  <option value="05">Mei</option>
+                  <option value="06">Juni</option>
+                  <option value="07">Juli</option>
+                  <option value="08">Agustus</option>
+                  <option value="09">September</option>
+                  <option value="10">Oktober</option>
+                  <option value="11">November</option>
+                  <option value="12">Desember</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* Filter Tahun */}
+              <div className="relative flex-1 md:flex-initial">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <Calendar className="w-4 h-4" />
+                </span>
+                <select
+                  value={filterYear}
+                  onChange={(e) => { setFilterYear(e.target.value); setCurrentPage(1); }}
+                  className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm appearance-none cursor-pointer font-medium"
+                >
+                  <option value="all">Semua Tahun</option>
+                  {getUniqueYears().map(yr => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
           </div>
 
@@ -984,19 +1071,37 @@ export default function StockPallet({ user }) {
                             </span>
                           </td>
                           <td className="py-4 px-4 text-center text-slate-500">{item.stockAwal}</td>
-                          <td className="py-4 px-4 text-center text-indigo-600 font-bold">+{item.produksi}</td>
-                          <td className="py-4 px-4 text-center text-blue-600 font-bold">+{item.dariLumajang}</td>
+                          <td className="py-4 px-4 text-center text-indigo-600 font-bold">
+                            {item.subcontNama === 'OPNAME' ? '-' : `+${item.produksi}`}
+                          </td>
+                          <td className="py-4 px-4 text-center text-blue-600 font-bold">
+                            {item.subcontNama === 'OPNAME' ? '-' : `+${item.dariLumajang}`}
+                          </td>
                           <td className="py-4 px-4 text-center text-cyan-600 font-bold">
-                            <div>+{item.dariSubcont}</div>
-                            {item.subcontNama && (
-                              <div className="text-[10px] text-slate-400 font-medium normal-case">
-                                ({item.subcontNama})
-                              </div>
+                            {item.subcontNama === 'OPNAME' ? (
+                              <span className="inline-flex px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black border border-amber-200">
+                                OPNAME CHECKPOINT
+                              </span>
+                            ) : (
+                              <>
+                                <div>+{item.dariSubcont}</div>
+                                {item.subcontNama && (
+                                  <div className="text-[10px] text-slate-400 font-medium normal-case">
+                                    ({item.subcontNama})
+                                  </div>
+                                )}
+                              </>
                             )}
                           </td>
-                          <td className="py-4 px-4 text-center text-rose-600 font-bold">-{item.palletKeluar}</td>
-                          <td className="py-4 px-4 text-center text-amber-600 font-bold">-{item.returLumajang}</td>
-                          <td className="py-4 px-4 text-center text-emerald-600 font-bold">+{item.returCustomer}</td>
+                          <td className="py-4 px-4 text-center text-rose-600 font-bold">
+                            {item.subcontNama === 'OPNAME' ? '-' : `-${item.palletKeluar}`}
+                          </td>
+                          <td className="py-4 px-4 text-center text-amber-600 font-bold">
+                            {item.subcontNama === 'OPNAME' ? '-' : `-${item.returLumajang}`}
+                          </td>
+                          <td className="py-4 px-4 text-center text-emerald-600 font-bold">
+                            {item.subcontNama === 'OPNAME' ? '-' : `+${item.returCustomer}`}
+                          </td>
                           <td className="py-4 px-4 text-center font-extrabold text-indigo-700 bg-indigo-50/20">
                             <span className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-150 text-xs font-extrabold">
                               {totalStock}
@@ -1502,121 +1607,168 @@ export default function StockPallet({ user }) {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100">
-                <h4 className="text-sm font-extrabold text-slate-800 mb-4">Mutasi & Rincian Stok (Unit)</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Stok Awal</label>
+              <div className="pt-4 border-t border-slate-100 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h4 className="text-sm font-extrabold text-slate-800">Mutasi & Rincian Stok (Unit)</h4>
+                  <label className="flex items-center gap-2 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100 cursor-pointer hover:bg-amber-100/50 transition-all select-none">
                     <input
-                      type="number"
-                      name="stockAwal"
-                      value={formData.stockAwal}
-                      onChange={handleInputChange}
-                      min="0"
-                      readOnly={hasPreceding}
-                      className={`w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold focus:outline-none ${
-                        hasPreceding
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : 'bg-slate-50 text-slate-800 focus:border-indigo-500 focus:bg-white'
-                      }`}
+                      type="checkbox"
+                      checked={formData.subcontNama === 'OPNAME'}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormData(prev => ({
+                          ...prev,
+                          subcontNama: checked ? 'OPNAME' : '',
+                          produksi: 0,
+                          dariLumajang: 0,
+                          dariSubcont: 0,
+                          palletKeluar: 0,
+                          returLumajang: 0,
+                          returCustomer: 0
+                        }));
+                      }}
+                      className="cursor-pointer accent-amber-600 w-4 h-4"
                     />
-                    <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
-                      {hasPreceding ? '*Dihitung otomatis (ada transaksi pendahulu)' : '*Saldo awal (bisa diedit manual)'}
-                    </span>
-                  </div>
+                    <span>Atur sebagai Stock Opname (Checkpoint)</span>
+                  </label>
+                </div>
 
-                  <div>
-                    <label className="block text-indigo-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Produksi</label>
-                    <input
-                      type="number"
-                      name="produksi"
-                      value={formData.produksi}
-                      onChange={handleInputChange}
-                      min="0"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-blue-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Lumajang</label>
-                    <input
-                      type="number"
-                      name="dariLumajang"
-                      value={formData.dariLumajang}
-                      onChange={handleInputChange}
-                      min="0"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-cyan-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Subcont</label>
-                    <input
-                      type="number"
-                      name="dariSubcont"
-                      value={formData.dariSubcont}
-                      onChange={handleInputChange}
-                      min="0"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-rose-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Pallet Keluar</label>
-                    <input
-                      type="number"
-                      name="palletKeluar"
-                      value={formData.palletKeluar}
-                      onChange={handleInputChange}
-                      min="0"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-amber-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Retur LMJ (WS)</label>
-                    <input
-                      type="number"
-                      name="returLumajang"
-                      value={formData.returLumajang}
-                      onChange={handleInputChange}
-                      min="0"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-emerald-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Retur Cust</label>
-                    <input
-                      type="number"
-                      name="returCustomer"
-                      value={formData.returCustomer}
-                      onChange={handleInputChange}
-                      min="0"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                    />
-                  </div>
-
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2 flex flex-col justify-center items-center text-center">
-                    <span className="text-indigo-600 text-[9px] font-bold uppercase tracking-wider">Total Est.</span>
-                    <span className="text-lg font-black text-indigo-700">
-                      {calculateTotalStock(formData)}
-                    </span>
-                  </div>
-                  {Number(formData.dariSubcont) > 0 && (
-                    <div className="mt-4 p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-1.5 animate-fadeIn">
-                      <label className="block text-cyan-700 text-xs font-bold uppercase tracking-wider">Nama Subcont / Vendor</label>
+                {formData.subcontNama === 'OPNAME' ? (
+                  <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100 text-xs text-amber-700 space-y-3">
+                    <p className="font-bold">⚠️ Perhatian: Mode Penyesuaian Stock Opname Aktif</p>
+                    <p className="font-medium leading-relaxed">
+                      Sistem akan menggunakan angka di bawah ini sebagai saldo fisik riil pada tanggal ini. 
+                      Semua perhitungan mutasi setelah tanggal ini akan otomatis dimulai dari saldo opname ini.
+                    </p>
+                    <div className="max-w-[220px]">
+                      <label className="block text-slate-600 text-[10px] font-extrabold uppercase tracking-wider mb-1.5">Stok Hasil Opname (Saldo Baru)</label>
                       <input
-                        type="text"
-                        name="subcontNama"
-                        value={formData.subcontNama || ''}
+                        type="number"
+                        name="stockAwal"
+                        required
+                        value={formData.stockAwal}
                         onChange={handleInputChange}
-                        placeholder="Masukkan nama subcont (contoh: CV Abadi Jaya)..."
-                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 focus:outline-none focus:border-cyan-500 focus:bg-white text-sm font-semibold"
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg border border-amber-200 focus:outline-none focus:border-amber-500 focus:bg-white text-sm font-bold text-amber-800 bg-white"
                       />
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Stok Awal</label>
+                      <input
+                        type="number"
+                        name="stockAwal"
+                        value={formData.stockAwal}
+                        onChange={handleInputChange}
+                        min="0"
+                        readOnly={hasPreceding}
+                        className={`w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold focus:outline-none ${
+                          hasPreceding
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-slate-50 text-slate-800 focus:border-indigo-500 focus:bg-white'
+                        }`}
+                      />
+                      <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
+                        {hasPreceding ? '*Dihitung otomatis (ada transaksi pendahulu)' : '*Saldo awal (bisa diedit manual)'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-indigo-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Produksi</label>
+                      <input
+                        type="number"
+                        name="produksi"
+                        value={formData.produksi}
+                        onChange={handleInputChange}
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-blue-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Lumajang</label>
+                      <input
+                        type="number"
+                        name="dariLumajang"
+                        value={formData.dariLumajang}
+                        onChange={handleInputChange}
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-cyan-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Subcont</label>
+                      <input
+                        type="number"
+                        name="dariSubcont"
+                        value={formData.dariSubcont}
+                        onChange={handleInputChange}
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-rose-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Pallet Keluar</label>
+                      <input
+                        type="number"
+                        name="palletKeluar"
+                        value={formData.palletKeluar}
+                        onChange={handleInputChange}
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-amber-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Retur LMJ (WS)</label>
+                      <input
+                        type="number"
+                        name="returLumajang"
+                        value={formData.returLumajang}
+                        onChange={handleInputChange}
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-emerald-600 text-[10px] font-bold uppercase tracking-wider mb-1.5">Retur Cust</label>
+                      <input
+                        type="number"
+                        name="returCustomer"
+                        value={formData.returCustomer}
+                        onChange={handleInputChange}
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                      />
+                    </div>
+
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2 flex flex-col justify-center items-center text-center">
+                      <span className="text-indigo-600 text-[9px] font-bold uppercase tracking-wider">Total Est.</span>
+                      <span className="text-lg font-black text-indigo-700">
+                        {calculateTotalStock(formData)}
+                      </span>
+                    </div>
+
+                    {Number(formData.dariSubcont) > 0 && (
+                      <div className="col-span-2 sm:col-span-4 mt-2 p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-1.5 animate-fadeIn">
+                        <label className="block text-cyan-700 text-xs font-bold uppercase tracking-wider">Nama Subcont / Vendor</label>
+                        <input
+                          type="text"
+                          name="subcontNama"
+                          value={formData.subcontNama || ''}
+                          onChange={handleInputChange}
+                          placeholder="Masukkan nama subcont (contoh: CV Abadi Jaya)..."
+                          className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-850 focus:outline-none focus:border-cyan-500 focus:bg-white text-sm font-semibold"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
