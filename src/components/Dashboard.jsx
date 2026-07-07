@@ -42,11 +42,40 @@ export default function Dashboard() {
     loadDashboardData();
   }, []);
 
-  // Calculations
-  const totalStockLatest = stockPallets.reduce((acc, curr) => {
-    const total = curr.stockAwal + curr.produksi + curr.dariLumajang + curr.dariSubcont + curr.returCustomer - curr.palletKeluar - curr.returLumajang;
-    return acc + total;
-  }, 0);
+  // Group by customer and ukuran, sort ascending, find latest transaction for each group
+  const customerUkuranGroups = {};
+  stockPallets.forEach(sp => {
+    const key = `${sp.customer}||${sp.ukuran}`;
+    if (!customerUkuranGroups[key]) customerUkuranGroups[key] = [];
+    customerUkuranGroups[key].push(sp);
+  });
+
+  const latestStocks = [];
+  for (const key in customerUkuranGroups) {
+    const group = customerUkuranGroups[key].sort((a, b) => {
+      const dateA = new Date(a.tanggal);
+      const dateB = new Date(b.tanggal);
+      if (dateA - dateB !== 0) return dateA - dateB;
+      const timeA = a.createdAt || a.id || '';
+      const timeB = b.createdAt || b.id || '';
+      return timeA.localeCompare(timeB);
+    });
+    const lastTx = group[group.length - 1];
+    const totalStock = (lastTx.stockAwal || 0) + 
+                       (lastTx.produksi || 0) + 
+                       (lastTx.dariLumajang || 0) + 
+                       (lastTx.dariSubcont || 0) + 
+                       (lastTx.returCustomer || 0) - 
+                       (lastTx.palletKeluar || 0) - 
+                       (lastTx.returLumajang || 0);
+    latestStocks.push({
+      customer: lastTx.customer,
+      ukuran: lastTx.ukuran,
+      stock: totalStock
+    });
+  }
+
+  const totalStockLatest = latestStocks.reduce((acc, curr) => acc + curr.stock, 0);
 
   // In Process KD
   const kdActiveCount = kdBelum.filter(k => k.status === 'Proses').reduce((acc, curr) => acc + curr.qty, 0);
@@ -64,8 +93,17 @@ export default function Dashboard() {
     ? Math.round((totalRepaired / (totalRepaired + totalScrap || 1)) * 100) 
     : 0;
 
-  // Chart 1: Pallet Inbound vs Outbound over time
-  const palletFlowData = stockPallets.map(sp => {
+  // Chart 1: Pallet Inbound vs Outbound over time (sorted chronologically ascending)
+  const sortedStockPallets = [...stockPallets].sort((a, b) => {
+    const dateA = new Date(a.tanggal);
+    const dateB = new Date(b.tanggal);
+    if (dateA - dateB !== 0) return dateA - dateB;
+    const timeA = a.createdAt || a.id || '';
+    const timeB = b.createdAt || b.id || '';
+    return timeA.localeCompare(timeB);
+  });
+
+  const palletFlowData = sortedStockPallets.map(sp => {
     const inbound = sp.produksi + sp.dariLumajang + sp.dariSubcont + sp.returCustomer;
     const outbound = sp.palletKeluar + sp.returLumajang;
     return {
@@ -78,12 +116,11 @@ export default function Dashboard() {
 
   // Chart 2: Stock Pallet per Customer
   const customerStockMap = {};
-  stockPallets.forEach(sp => {
-    const net = sp.stockAwal + sp.produksi + sp.dariLumajang + sp.dariSubcont + sp.returCustomer - sp.palletKeluar - sp.returLumajang;
-    if (!customerStockMap[sp.customer]) {
-      customerStockMap[sp.customer] = 0;
+  latestStocks.forEach(item => {
+    if (!customerStockMap[item.customer]) {
+      customerStockMap[item.customer] = 0;
     }
-    customerStockMap[sp.customer] += net;
+    customerStockMap[item.customer] += item.stock;
   });
   const customerStockData = Object.keys(customerStockMap).map(cust => ({
     name: cust.replace('PT ', '').substring(0, 12),

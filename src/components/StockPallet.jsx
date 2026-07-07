@@ -260,18 +260,16 @@ export default function StockPallet({ user }) {
 
       let currentStock = 0;
       if (allTxUpToDate.length > 0) {
-        const sortedAsc = [...allTxUpToDate].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
-        const earliestDate = sortedAsc[0].tanggal;
-        const baseStock = Math.max(...sortedAsc.filter(t => t.tanggal === earliestDate).map(t => Number(t.stockAwal || 0)));
-        
-        const histProduksi = allTxUpToDate.reduce((acc, item) => acc + Number(item.produksi || 0), 0);
-        const histInLumajang = allTxUpToDate.reduce((acc, item) => acc + Number(item.dariLumajang || 0), 0);
-        const histInSubcont = allTxUpToDate.reduce((acc, item) => acc + Number(item.dariSubcont || 0), 0);
-        const histOutKirim = allTxUpToDate.reduce((acc, item) => acc + Number(item.palletKeluar || 0), 0);
-        const histReturLmj = allTxUpToDate.reduce((acc, item) => acc + Number(item.returLumajang || 0), 0);
-        const histReturCust = allTxUpToDate.reduce((acc, item) => acc + Number(item.returCustomer || 0), 0);
-
-        currentStock = baseStock + histProduksi + histInLumajang + histInSubcont + histReturCust - histOutKirim - histReturLmj;
+        const sortedAsc = [...allTxUpToDate].sort((a, b) => {
+          const dateA = new Date(a.tanggal);
+          const dateB = new Date(b.tanggal);
+          if (dateA - dateB !== 0) return dateA - dateB;
+          const timeA = a.createdAt || a.id || '';
+          const timeB = b.createdAt || b.id || '';
+          return timeA.localeCompare(timeB);
+        });
+        const lastTx = sortedAsc[sortedAsc.length - 1];
+        currentStock = calculateTotalStock(lastTx);
       }
 
       return {
@@ -1009,128 +1007,246 @@ export default function StockPallet({ user }) {
             </div>
           </div>
 
-          {/* Main Table Grid */}
-          <div className="glass-card bg-white rounded-2xl overflow-hidden border border-slate-150">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
-                    <th className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('tanggal')}>
-                      Tanggal {mutasiSort.key === 'tanggal' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('customer')}>
-                      Customer {mutasiSort.key === 'customer' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('ukuran')}>
-                      Ukuran {mutasiSort.key === 'ukuran' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('stockAwal')}>
-                      Stok Awal {mutasiSort.key === 'stockAwal' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('produksi')}>
-                      Produksi {mutasiSort.key === 'produksi' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('dariLumajang')}>
-                      In: Lumajang {mutasiSort.key === 'dariLumajang' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('dariSubcont')}>
-                      In: Subcont {mutasiSort.key === 'dariSubcont' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('palletKeluar')}>
-                      Out: Kirim {mutasiSort.key === 'palletKeluar' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('returLumajang')}>
-                      Retur: LMJ (WS) {mutasiSort.key === 'returLumajang' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('returCustomer')}>
-                      Retur: Cust {mutasiSort.key === 'returCustomer' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-4 text-center font-extrabold text-slate-700">Total Pallet</th>
-                    {isAdmin && <th className="py-4 px-4 text-center">Aksi</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {sortedMutasiData.length === 0 ? (
-                    <tr>
-                      <td colSpan={isAdmin ? 12 : 11} className="py-12 text-center text-slate-400 font-medium">
-                        Tidak ada data stok pallet yang cocok dengan pencarian Anda.
-                      </td>
+          {/* Main Table Grid / Cards */}
+          <div className="space-y-4">
+            {/* Desktop & Tablet Table View */}
+            <div className="hidden md:block glass-card bg-white rounded-2xl overflow-hidden border border-slate-150">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left table-fixed">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
+                      <th className="py-4 px-4 w-28 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('tanggal')}>
+                        Tanggal {mutasiSort.key === 'tanggal' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-4 w-48 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('customer')}>
+                        Customer / Ukuran {mutasiSort.key === 'customer' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-4 w-24 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('stockAwal')}>
+                        Stok Awal {mutasiSort.key === 'stockAwal' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-4 w-24 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('produksi')}>
+                        Produksi {mutasiSort.key === 'produksi' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-4 w-36 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('dariLumajang')}>
+                        Masuk (In) {mutasiSort.key === 'dariLumajang' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-4 w-24 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('palletKeluar')}>
+                        Kirim (Out) {mutasiSort.key === 'palletKeluar' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-4 w-32 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleMutasiSort('returCustomer')}>
+                        Retur {mutasiSort.key === 'returCustomer' && (mutasiSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-4 w-24 text-center font-extrabold text-slate-700">Total</th>
+                      {isAdmin && <th className="py-4 px-4 w-24 text-center">Aksi</th>}
                     </tr>
-                  ) : (
-                    paginatedData.map((item) => {
-                      const totalStock = calculateTotalStock(item);
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-150 text-slate-600 font-medium whitespace-nowrap">
-                          <td className="py-4 px-4 text-slate-500">
-                            {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </td>
-                          <td className="py-4 px-4 font-bold text-slate-800">{item.customer}</td>
-                          <td className="py-4 px-4">
-                            <span className="px-2 py-0.5 rounded bg-slate-100 text-xs border border-slate-200 text-slate-600 font-bold">
-                              {item.ukuran}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 text-center text-slate-500">{item.stockAwal}</td>
-                          <td className="py-4 px-4 text-center text-indigo-600 font-bold">
-                            {item.subcontNama === 'OPNAME' ? '-' : `+${item.produksi}`}
-                          </td>
-                          <td className="py-4 px-4 text-center text-blue-600 font-bold">
-                            {item.subcontNama === 'OPNAME' ? '-' : `+${item.dariLumajang}`}
-                          </td>
-                          <td className="py-4 px-4 text-center text-cyan-600 font-bold">
-                            {item.subcontNama === 'OPNAME' ? (
-                              <span className="inline-flex px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black border border-amber-200">
-                                OPNAME CHECKPOINT
-                              </span>
-                            ) : (
-                              <>
-                                <div>+{item.dariSubcont}</div>
-                                {item.subcontNama && (
-                                  <div className="text-[10px] text-slate-400 font-medium normal-case">
-                                    ({item.subcontNama})
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </td>
-                          <td className="py-4 px-4 text-center text-rose-600 font-bold">
-                            {item.subcontNama === 'OPNAME' ? '-' : `-${item.palletKeluar}`}
-                          </td>
-                          <td className="py-4 px-4 text-center text-amber-600 font-bold">
-                            {item.subcontNama === 'OPNAME' ? '-' : `-${item.returLumajang}`}
-                          </td>
-                          <td className="py-4 px-4 text-center text-emerald-600 font-bold">
-                            {item.subcontNama === 'OPNAME' ? '-' : `+${item.returCustomer}`}
-                          </td>
-                          <td className="py-4 px-4 text-center font-extrabold text-indigo-700 bg-indigo-50/20">
-                            <span className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-150 text-xs font-extrabold">
-                              {totalStock}
-                            </span>
-                          </td>
-                          {isAdmin && (
-                            <td className="py-4 px-4 text-center">
-                              <div className="flex justify-center gap-2">
-                                <button
-                                  onClick={() => handleEdit(item)}
-                                  className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-all cursor-pointer"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(item.id)}
-                                  className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {sortedMutasiData.length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdmin ? 9 : 8} className="py-12 text-center text-slate-400 font-medium">
+                          Tidak ada data stok pallet yang cocok dengan pencarian Anda.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedData.map((item) => {
+                        const totalStock = calculateTotalStock(item);
+
+                        // Format Masuk (In) column
+                        let masukStr = '-';
+                        if (item.dariLumajang > 0 && item.dariSubcont > 0) {
+                          masukStr = `LMJ: +${item.dariLumajang} / SBC: +${item.dariSubcont}`;
+                        } else if (item.dariLumajang > 0) {
+                          masukStr = `LMJ: +${item.dariLumajang}`;
+                        } else if (item.dariSubcont > 0) {
+                          masukStr = `SBC: +${item.dariSubcont}`;
+                        }
+
+                        // Format Retur column
+                        let returStr = '-';
+                        if (item.returCustomer > 0 && item.returLumajang > 0) {
+                          returStr = `Cust: +${item.returCustomer} / LMJ: -${item.returLumajang}`;
+                        } else if (item.returCustomer > 0) {
+                          returStr = `Cust: +${item.returCustomer}`;
+                        } else if (item.returLumajang > 0) {
+                          returStr = `LMJ: -${item.returLumajang}`;
+                        }
+
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-150 text-slate-600 font-medium">
+                            <td className="py-4 px-4 text-slate-500 text-xs">
+                              {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </td>
-                          )}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                            <td className="py-4 px-4">
+                              <div className="font-bold text-slate-800 truncate" title={item.customer}>{item.customer}</div>
+                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
+                                {item.ukuran}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-center text-slate-500">{item.stockAwal}</td>
+                            <td className="py-4 px-4 text-center text-indigo-655 font-bold">
+                              {item.subcontNama === 'OPNAME' ? '-' : `+${item.produksi}`}
+                            </td>
+                            <td className="py-4 px-4 text-center text-blue-650 font-bold text-xs">
+                              {item.subcontNama === 'OPNAME' ? (
+                                <span className="inline-flex px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-black border border-amber-200">
+                                  OPNAME
+                                </span>
+                              ) : (
+                                <>
+                                  <div>{masukStr}</div>
+                                  {item.subcontNama && (
+                                    <div className="text-[9px] text-slate-400 font-medium normal-case">
+                                      ({item.subcontNama})
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 text-center text-rose-600 font-bold">
+                              {item.subcontNama === 'OPNAME' ? '-' : `-${item.palletKeluar}`}
+                            </td>
+                            <td className="py-4 px-4 text-center text-amber-600 font-bold text-xs">
+                              {item.subcontNama === 'OPNAME' ? '-' : returStr}
+                            </td>
+                            <td className="py-4 px-4 text-center font-extrabold text-indigo-700 bg-indigo-50/20">
+                              <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-150 text-xs font-extrabold">
+                                {totalStock}
+                              </span>
+                            </td>
+                            {isAdmin && (
+                              <td className="py-4 px-4 text-center">
+                                <div className="flex justify-center gap-2">
+                                  <button
+                                    onClick={() => handleEdit(item)}
+                                    className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-all cursor-pointer"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(item.id)}
+                                    className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Cards List View */}
+            <div className="md:hidden space-y-4">
+              {sortedMutasiData.length === 0 ? (
+                <div className="glass-card bg-white rounded-2xl p-8 text-center text-slate-400 font-medium border border-slate-100">
+                  Tidak ada data stok pallet yang cocok dengan pencarian Anda.
+                </div>
+              ) : (
+                paginatedData.map((item) => {
+                  const totalStock = calculateTotalStock(item);
+                  
+                  // Format Masuk (In) details
+                  let masukStr = '-';
+                  if (item.dariLumajang > 0 && item.dariSubcont > 0) {
+                    masukStr = `LMJ: +${item.dariLumajang} / SBC: +${item.dariSubcont}`;
+                  } else if (item.dariLumajang > 0) {
+                    masukStr = `LMJ: +${item.dariLumajang}`;
+                  } else if (item.dariSubcont > 0) {
+                    masukStr = `SBC: +${item.dariSubcont}`;
+                  }
+
+                  // Format Retur details
+                  let returStr = '-';
+                  if (item.returCustomer > 0 && item.returLumajang > 0) {
+                    returStr = `Cust: +${item.returCustomer} / LMJ: -${item.returLumajang}`;
+                  } else if (item.returCustomer > 0) {
+                    returStr = `Cust: +${item.returCustomer}`;
+                  } else if (item.returLumajang > 0) {
+                    returStr = `LMJ: -${item.returLumajang}`;
+                  }
+
+                  return (
+                    <div key={item.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 text-xs font-semibold">
+                          {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                        {item.subcontNama === 'OPNAME' ? (
+                          <span className="inline-flex px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black border border-amber-200">
+                            OPNAME CHECKPOINT
+                          </span>
+                        ) : (
+                          item.subcontNama && (
+                            <span className="inline-flex px-2 py-0.5 rounded bg-cyan-50 text-cyan-700 text-[10px] font-bold border border-cyan-150">
+                              SBC: {item.subcontNama}
+                            </span>
+                          )
+                        )}
+                      </div>
+                      
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm">{item.customer}</h4>
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
+                          {item.ukuran}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-xl text-center text-[11px] border border-slate-100">
+                        <div>
+                          <span className="text-slate-400 block font-semibold mb-0.5">Awal</span>
+                          <span className="text-slate-700 font-bold">{item.stockAwal}</span>
+                        </div>
+                        <div>
+                          <span className="text-indigo-500 block font-semibold mb-0.5">Produksi</span>
+                          <span className="text-indigo-650 font-bold">{item.subcontNama === 'OPNAME' ? '-' : `+${item.produksi}`}</span>
+                        </div>
+                        <div>
+                          <span className="text-blue-500 block font-semibold mb-0.5">Masuk (In)</span>
+                          <span className="text-blue-650 font-bold truncate block px-0.5" title={masukStr}>
+                            {item.subcontNama === 'OPNAME' ? '-' : (item.dariLumajang + item.dariSubcont > 0 ? masukStr : '-')}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-rose-500 block font-semibold mb-0.5">Kirim (Out)</span>
+                          <span className="text-rose-650 font-bold">{item.subcontNama === 'OPNAME' ? '-' : `-${item.palletKeluar}`}</span>
+                        </div>
+                        <div>
+                          <span className="text-amber-500 block font-semibold mb-0.5">Retur</span>
+                          <span className="text-amber-650 font-bold truncate block px-0.5" title={returStr}>
+                            {item.subcontNama === 'OPNAME' ? '-' : returStr}
+                          </span>
+                        </div>
+                        <div className="bg-indigo-100/50 rounded-lg py-0.5">
+                          <span className="text-indigo-700 block font-bold mb-0.5">Total</span>
+                          <span className="text-indigo-850 font-black">{totalStock}</span>
+                        </div>
+                      </div>
+
+                      {isAdmin && (
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-all text-xs font-bold cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-xs font-bold cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Hapus
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -1308,85 +1424,153 @@ export default function StockPallet({ user }) {
               </span>
             </div>
           </div>
-          <div className="glass-card bg-white rounded-2xl overflow-hidden border border-slate-150 shadow-sm mt-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
-                    <th className="py-4 px-6 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('nama')}>
-                      Nama Jenis Pallet {summarySort.key === 'nama' && (summarySort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('ukuran')}>
-                      Ukuran {summarySort.key === 'ukuran' && (summarySort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalTx')}>
-                      Log {summarySort.key === 'totalTx' && (summarySort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalProduksi')}>
-                      Produksi {summarySort.key === 'totalProduksi' && (summarySort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalIn')}>
-                      In {summarySort.key === 'totalIn' && (summarySort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalOut')}>
-                      Out {summarySort.key === 'totalOut' && (summarySort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('currentStock')}>
-                      Stok WH (Pcs) {summarySort.key === 'currentStock' && (summarySort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    {isAdmin && <th className="py-4 px-6 text-center w-16">Aksi</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm text-slate-650 font-semibold">
-                  {getSortedSummary().length === 0 ? (
-                    <tr>
-                      <td colSpan="8" className="py-10 text-center text-slate-400 font-medium">
-                        Belum ada jenis pallet yang terdaftar untuk dirinci.
-                      </td>
+          {/* Rincian Table / Cards */}
+          <div className="space-y-4">
+            {/* Desktop View Table */}
+            <div className="hidden sm:block glass-card bg-white rounded-2xl overflow-hidden border border-slate-150 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left table-fixed">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
+                      <th className="py-4 px-6 w-48 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('nama')}>
+                        Nama Jenis Pallet {summarySort.key === 'nama' && (summarySort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 w-36 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('ukuran')}>
+                        Ukuran {summarySort.key === 'ukuran' && (summarySort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 w-24 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalTx')}>
+                        Log {summarySort.key === 'totalTx' && (summarySort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 w-28 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalProduksi')}>
+                        Produksi {summarySort.key === 'totalProduksi' && (summarySort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 w-28 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalIn')}>
+                        In {summarySort.key === 'totalIn' && (summarySort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 w-28 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('totalOut')}>
+                        Out {summarySort.key === 'totalOut' && (summarySort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 w-32 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSummarySort('currentStock')}>
+                        Stok WH (Pcs) {summarySort.key === 'currentStock' && (summarySort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      {isAdmin && <th className="py-4 px-6 text-center w-24">Aksi</th>}
                     </tr>
-                  ) : (
-                    getSortedSummary().map((item) => (
-                      <tr 
-                        key={item.id} 
-                        onClick={() => setSelectedRincianHistory(item)}
-                        className="hover:bg-slate-50/80 transition-all text-slate-600 whitespace-nowrap cursor-pointer"
-                        title="Klik untuk melihat history transaksi"
-                      >
-                        <td className="py-4 px-6 font-bold text-slate-800">{item.nama}</td>
-                        <td className="py-4 px-6">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs text-slate-600 font-bold">
-                            {item.ukuran}
-                          </span>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm text-slate-650 font-semibold">
+                    {getSortedSummary().length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdmin ? 8 : 7} className="py-10 text-center text-slate-400 font-medium">
+                          Belum ada jenis pallet yang terdaftar untuk dirinci.
                         </td>
-                        <td className="py-4 px-6 text-center text-slate-500 font-normal">{item.totalTx} baris log</td>
-                        <td className="py-4 px-6 text-center text-emerald-600 font-bold">+{item.totalProduksi}</td>
-                        <td className="py-4 px-6 text-center text-blue-600">+{item.totalIn}</td>
-                        <td className="py-4 px-6 text-center text-rose-600">-{item.totalOut}</td>
-                        <td className="py-4 px-6 text-center font-extrabold bg-indigo-50/10">
-                          <span className={`px-2.5 py-1 rounded text-xs font-black border ${
-                            item.currentStock > 0 
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-150' 
-                              : 'bg-slate-100 text-slate-500 border-slate-200'
-                          }`}>
-                            {item.currentStock} Pcs
-                          </span>
-                        </td>
-                        {isAdmin && (
-                          <td className="py-4 px-6 text-center" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => handleTypeDelete(item.id)}
-                              className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all cursor-pointer"
-                              title="Hapus Jenis Pallet"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        )}
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      getSortedSummary().map((item) => (
+                        <tr 
+                          key={item.id} 
+                          onClick={() => setSelectedRincianHistory(item)}
+                          className="hover:bg-slate-50/80 transition-all text-slate-600 cursor-pointer"
+                          title="Klik untuk melihat history transaksi"
+                        >
+                          <td className="py-4 px-6 font-bold text-slate-800 truncate" title={item.nama}>{item.nama}</td>
+                          <td className="py-4 px-6">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs text-slate-600 font-bold">
+                              {item.ukuran}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-center text-slate-500 font-normal">{item.totalTx} baris log</td>
+                          <td className="py-4 px-6 text-center text-emerald-600 font-bold">+{item.totalProduksi}</td>
+                          <td className="py-4 px-6 text-center text-blue-600">+{item.totalIn}</td>
+                          <td className="py-4 px-6 text-center text-rose-600">-{item.totalOut}</td>
+                          <td className="py-4 px-6 text-center font-extrabold bg-indigo-50/10">
+                            <span className={`px-2.5 py-1 rounded text-xs font-black border ${
+                              item.currentStock > 0 
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-150' 
+                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}>
+                              {item.currentStock} Pcs
+                            </span>
+                          </td>
+                          {isAdmin && (
+                            <td className="py-4 px-6 text-center" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handleTypeDelete(item.id)}
+                                className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all cursor-pointer"
+                                title="Hapus Jenis Pallet"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="sm:hidden space-y-4">
+              {getSortedSummary().length === 0 ? (
+                <div className="glass-card bg-white rounded-2xl p-8 text-center text-slate-400 font-medium border border-slate-100">
+                  Belum ada jenis pallet yang terdaftar untuk dirinci.
+                </div>
+              ) : (
+                getSortedSummary().map((item) => (
+                  <div 
+                    key={item.id} 
+                    onClick={() => setSelectedRincianHistory(item)}
+                    className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 cursor-pointer"
+                    title="Klik untuk melihat history transaksi"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm">{item.nama}</h4>
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
+                          {item.ukuran}
+                        </span>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded text-xs font-black border ${
+                        item.currentStock > 0 
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-150' 
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }`}>
+                        {item.currentStock} Pcs
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl text-center text-[10px] border border-slate-100">
+                      <div>
+                        <span className="text-slate-450 block font-semibold mb-0.5">Log</span>
+                        <span className="text-slate-700 font-bold">{item.totalTx}</span>
+                      </div>
+                      <div>
+                        <span className="text-emerald-500 block font-semibold mb-0.5">Prod</span>
+                        <span className="text-emerald-650 font-bold">+{item.totalProduksi}</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-500 block font-semibold mb-0.5">In</span>
+                        <span className="text-blue-650 font-bold">+{item.totalIn}</span>
+                      </div>
+                      <div>
+                        <span className="text-rose-500 block font-semibold mb-0.5">Out</span>
+                        <span className="text-rose-650 font-bold">-{item.totalOut}</span>
+                      </div>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="flex justify-end pt-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleTypeDelete(item.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-xs font-bold cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Hapus Jenis
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1423,68 +1607,133 @@ export default function StockPallet({ user }) {
             </div>
           </div>
 
-          <div className="glass-card bg-white rounded-2xl overflow-hidden border border-slate-150">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
-                    <th className="py-4 px-6 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleJenisSort('nama')}>
-                      Nama Jenis Pallet {jenisSort.key === 'nama' && (jenisSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleJenisSort('ukuran')}>
-                      Ukuran {jenisSort.key === 'ukuran' && (jenisSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="py-4 px-6 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleJenisSort('keterangan')}>
-                      Keterangan {jenisSort.key === 'keterangan' && (jenisSort.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    {isAdmin && <th className="py-4 px-6 text-center">Aksi</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm text-slate-650 font-semibold">
-                  {sortedPalletTypes.length === 0 ? (
-                    <tr>
-                      <td colSpan={isAdmin ? 4 : 3} className="py-10 text-center text-slate-400 font-medium">
-                      </td>
+          {/* Jenis Table / Cards */}
+          <div className="space-y-4">
+            {/* Desktop Table View */}
+            <div className="hidden sm:block glass-card bg-white rounded-2xl overflow-hidden border border-slate-150">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left table-fixed">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
+                      <th className="py-4 px-6 w-48 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleJenisSort('nama')}>
+                        Nama Jenis Pallet {jenisSort.key === 'nama' && (jenisSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 w-36 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleJenisSort('ukuran')}>
+                        Ukuran {jenisSort.key === 'ukuran' && (jenisSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="py-4 px-6 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleJenisSort('keterangan')}>
+                        Keterangan {jenisSort.key === 'keterangan' && (jenisSort.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                      {isAdmin && <th className="py-4 px-6 text-center w-28">Aksi</th>}
                     </tr>
-                  ) : (
-                    palletTypes
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm text-slate-650 font-semibold">
+                    {palletTypes
                       .filter(pt => 
                         pt.nama.toLowerCase().includes(typeSearch.toLowerCase()) ||
                         pt.ukuran.toLowerCase().includes(typeSearch.toLowerCase()) ||
                         (pt.keterangan || '').toLowerCase().includes(typeSearch.toLowerCase())
-                      )
-                      .map((pt) => (
-                        <tr key={pt.id} className="hover:bg-slate-50/80 transition-all text-slate-600 whitespace-nowrap">
-                          <td className="py-4 px-6 font-bold text-slate-800">{pt.nama}</td>
-                          <td className="py-4 px-6">
-                            <span className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-bold">
+                      ).length === 0 ? (
+                        <tr>
+                          <td colSpan={isAdmin ? 4 : 3} className="py-10 text-center text-slate-400 font-medium">
+                            Tidak ada jenis pallet yang cocok dengan pencarian.
+                          </td>
+                        </tr>
+                      ) : (
+                        palletTypes
+                          .filter(pt => 
+                            pt.nama.toLowerCase().includes(typeSearch.toLowerCase()) ||
+                            pt.ukuran.toLowerCase().includes(typeSearch.toLowerCase()) ||
+                            (pt.keterangan || '').toLowerCase().includes(typeSearch.toLowerCase())
+                          )
+                          .map((pt) => (
+                            <tr key={pt.id} className="hover:bg-slate-50/80 transition-all text-slate-600">
+                              <td className="py-4 px-6 font-bold text-slate-800 truncate" title={pt.nama}>{pt.nama}</td>
+                              <td className="py-4 px-6">
+                                <span className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-bold">
+                                  {pt.ukuran}
+                                </span>
+                              </td>
+                              <td className="py-4 px-6 text-slate-500 font-normal truncate" title={pt.keterangan}>{pt.keterangan || '-'}</td>
+                              {isAdmin && (
+                                <td className="py-4 px-6">
+                                  <div className="flex justify-center gap-2">
+                                    <button
+                                      onClick={() => handleTypeEdit(pt)}
+                                      className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-all cursor-pointer"
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleTypeDelete(pt.id)}
+                                      className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all cursor-pointer"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                      )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="sm:hidden space-y-4">
+              {palletTypes
+                .filter(pt => 
+                  pt.nama.toLowerCase().includes(typeSearch.toLowerCase()) ||
+                  pt.ukuran.toLowerCase().includes(typeSearch.toLowerCase()) ||
+                  (pt.keterangan || '').toLowerCase().includes(typeSearch.toLowerCase())
+                ).length === 0 ? (
+                  <div className="glass-card bg-white rounded-2xl p-8 text-center text-slate-400 font-medium border border-slate-100">
+                    Tidak ada jenis pallet yang terdaftar.
+                  </div>
+                ) : (
+                  palletTypes
+                    .filter(pt => 
+                      pt.nama.toLowerCase().includes(typeSearch.toLowerCase()) ||
+                      pt.ukuran.toLowerCase().includes(typeSearch.toLowerCase()) ||
+                      (pt.keterangan || '').toLowerCase().includes(typeSearch.toLowerCase())
+                    )
+                    .map((pt) => (
+                      <div key={pt.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 text-sm">{pt.nama}</h4>
+                            <span className="inline-block mt-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
                               {pt.ukuran}
                             </span>
-                          </td>
-                          <td className="py-4 px-6 text-slate-500 font-normal">{pt.keterangan || '-'}</td>
-                          {isAdmin && (
-                            <td className="py-4 px-6">
-                              <div className="flex justify-center gap-2">
-                                <button
-                                  onClick={() => handleTypeEdit(pt)}
-                                  className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-all cursor-pointer"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleTypeDelete(pt.id)}
-                                  className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))
-                  )}
-                </tbody>
-              </table>
+                          </div>
+                        </div>
+                        
+                        <p className="text-xs text-slate-550 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                          <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Keterangan</span>
+                          {pt.keterangan || '-'}
+                        </p>
+
+                        {isAdmin && (
+                          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                            <button
+                              onClick={() => handleTypeEdit(pt)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-all text-xs font-bold cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleTypeDelete(pt.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-xs font-bold cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Hapus
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                )}
             </div>
           </div>
         </div>
@@ -1934,20 +2183,77 @@ export default function StockPallet({ user }) {
               return (
                 <div className="flex-1 overflow-auto p-6 bg-white flex flex-col gap-4">
                   <div className="flex-1 overflow-auto">
-                    <table className="w-full border-collapse text-left text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap">
-                          <th className="py-3 px-4">Tanggal</th>
-                          <th className="py-3 px-4 text-center">Stok Awal</th>
-                          <th className="py-3 px-4 text-center">Produksi</th>
-                          <th className="py-3 px-4 text-center">Masuk (In)</th>
-                          <th className="py-3 px-4 text-center">Kirim (Out)</th>
-                          <th className="py-3 px-4 text-center">Retur</th>
-                          <th className="py-3 px-4 text-center font-extrabold">Total Stok</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
-                        {paginatedHistory.map((item, idx) => {
+                    {/* Desktop Table View */}
+                    <div className="hidden sm:block">
+                      <table className="w-full border-collapse text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap">
+                            <th className="py-3 px-4">Tanggal</th>
+                            <th className="py-3 px-4 text-center">Stok Awal</th>
+                            <th className="py-3 px-4 text-center">Produksi</th>
+                            <th className="py-3 px-4 text-center">Masuk (In)</th>
+                            <th className="py-3 px-4 text-center">Kirim (Out)</th>
+                            <th className="py-3 px-4 text-center">Retur</th>
+                            <th className="py-3 px-4 text-center font-extrabold">Total Stok</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
+                          {paginatedHistory.map((item) => {
+                            const totalStock = calculateTotalStock(item);
+                            
+                            // Format Masuk (In) column
+                            let masukStr = '-';
+                            if (item.dariLumajang > 0 && item.dariSubcont > 0) {
+                              masukStr = `LMJ: +${item.dariLumajang} / SBC: +${item.dariSubcont}`;
+                            } else if (item.dariLumajang > 0) {
+                              masukStr = `LMJ: +${item.dariLumajang}`;
+                            } else if (item.dariSubcont > 0) {
+                              masukStr = `SBC: +${item.dariSubcont}`;
+                            }
+
+                            // Format Retur column
+                            let returStr = '-';
+                            if (item.returCustomer > 0 && item.returLumajang > 0) {
+                              returStr = `Cust: +${item.returCustomer} / LMJ: -${item.returLumajang}`;
+                            } else if (item.returCustomer > 0) {
+                              returStr = `Cust: +${item.returCustomer}`;
+                            } else if (item.returLumajang > 0) {
+                              returStr = `LMJ: -${item.returLumajang}`;
+                            }
+
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-50/80 transition-all whitespace-nowrap">
+                                <td className="py-3 px-4 text-slate-500">
+                                  {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </td>
+                                <td className="py-3 px-4 text-center text-slate-500">{item.stockAwal}</td>
+                                <td className="py-3 px-4 text-center text-indigo-650 font-bold">{item.produksi > 0 ? `+${item.produksi}` : '-'}</td>
+                                <td className="py-3 px-4 text-center text-blue-650 font-bold">{masukStr}</td>
+                                <td className="py-3 px-4 text-center text-rose-600 font-bold">{item.palletKeluar > 0 ? `-${item.palletKeluar}` : '-'}</td>
+                                <td className="py-3 px-4 text-center text-amber-600 font-bold">{returStr}</td>
+                                <td className="py-3 px-4 text-center font-extrabold text-indigo-700 bg-indigo-50/30">
+                                  {totalStock}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filteredHistory.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-10 text-center text-slate-400">Tidak ada history transaksi pada bulan & tahun ini.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Cards View */}
+                    <div className="sm:hidden space-y-3">
+                      {filteredHistory.length === 0 ? (
+                        <div className="py-10 text-center text-slate-400 font-medium">
+                          Tidak ada history transaksi pada bulan & tahun ini.
+                        </div>
+                      ) : (
+                        paginatedHistory.map((item) => {
                           const totalStock = calculateTotalStock(item);
                           
                           // Format Masuk (In) column
@@ -1971,28 +2277,43 @@ export default function StockPallet({ user }) {
                           }
 
                           return (
-                            <tr key={item.id} className="hover:bg-slate-50/80 transition-all whitespace-nowrap">
-                              <td className="py-3 px-4 text-slate-500">
-                                {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                              </td>
-                              <td className="py-3 px-4 text-center text-slate-500">{item.stockAwal}</td>
-                              <td className="py-3 px-4 text-center text-indigo-650 font-bold">{item.produksi > 0 ? `+${item.produksi}` : '-'}</td>
-                              <td className="py-3 px-4 text-center text-blue-650 font-bold">{masukStr}</td>
-                              <td className="py-3 px-4 text-center text-rose-600 font-bold">{item.palletKeluar > 0 ? `-${item.palletKeluar}` : '-'}</td>
-                              <td className="py-3 px-4 text-center text-amber-600 font-bold">{returStr}</td>
-                              <td className="py-3 px-4 text-center font-extrabold text-indigo-700 bg-indigo-50/30">
-                                {totalStock}
-                              </td>
-                            </tr>
+                            <div key={item.id} className="bg-slate-50 border border-slate-150 rounded-2xl p-4 shadow-xs space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs font-bold">
+                                  {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </span>
+                                <span className="text-indigo-750 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 text-xs font-extrabold">
+                                  Stok: {totalStock}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-left text-[11px] text-slate-650 bg-white p-3 rounded-xl border border-slate-100">
+                                <div>
+                                  <span className="text-slate-400 block font-semibold">Stok Awal:</span>
+                                  <span className="font-bold text-slate-700">{item.stockAwal}</span>
+                                </div>
+                                <div>
+                                  <span className="text-indigo-500 block font-semibold">Produksi:</span>
+                                  <span className="font-bold text-indigo-700">{item.produksi > 0 ? `+${item.produksi}` : '-'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-blue-500 block font-semibold">Masuk (In):</span>
+                                  <span className="font-bold text-blue-700 truncate block w-full text-xs" title={masukStr}>{masukStr}</span>
+                                </div>
+                                <div>
+                                  <span className="text-rose-500 block font-semibold">Kirim (Out):</span>
+                                  <span className="font-bold text-rose-700">{item.palletKeluar > 0 ? `-${item.palletKeluar}` : '-'}</span>
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-amber-500 block font-semibold">Retur:</span>
+                                  <span className="font-bold text-amber-700 truncate block w-full text-xs" title={returStr}>{returStr}</span>
+                                </div>
+                              </div>
+                            </div>
                           );
-                        })}
-                        {filteredHistory.length === 0 && (
-                          <tr>
-                            <td colSpan={7} className="py-10 text-center text-slate-400">Tidak ada history transaksi pada bulan & tahun ini.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                        })
+                      )}
+                    </div>
                   </div>
 
                   {filteredHistory.length > 0 && (
