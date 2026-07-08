@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Check, Play, Zap, Trash2, Edit3, X, RefreshCw, Link as LinkIcon, Loader2, Download } from 'lucide-react';
 
@@ -22,33 +23,33 @@ export default function KilnDry({ user }) {
   const [palletTypes, setPalletTypes] = useState([]);
 
   // States for multiple pallet items inside oven/chamber
-  const [belumKDItems, setBelumKDItems] = useState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }]);
-  const [setelahKDItems, setSetelahKDItems] = useState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }]);
+  const [belumKDItems, setBelumKDItems] = useStickyState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }], 'kd_belumItems');
+  const [setelahKDItems, setSetelahKDItems] = useStickyState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }], 'kd_setelahItems');
 
   // Google Sheets Sync
   const [isPushing, setIsPushing] = useState(false);
   const [appsScriptUrl, setAppsScriptUrl] = useState(() => localStorage.getItem('appsScriptUrlKD') || '');
 
   // Modals state
-  const [isBelumModalOpen, setIsBelumModalOpen] = useState(false);
-  const [isSetelahModalOpen, setIsSetelahModalOpen] = useState(false);
-  const [isListrikModalOpen, setIsListrikModalOpen] = useState(false);
+  const [isBelumModalOpen, setIsBelumModalOpen] = useStickyState(false, 'kd_isBelumModalOpen');
+  const [isSetelahModalOpen, setIsSetelahModalOpen] = useStickyState(false, 'kd_isSetelahModalOpen');
+  const [isListrikModalOpen, setIsListrikModalOpen] = useStickyState(false, 'kd_isListrikModalOpen');
 
   // Edit Item Trackers
   const [editingItem, setEditingItem] = useState(null);
   const [completingQueueItem, setCompletingQueueItem] = useState(null);
 
   // Forms State
-  const [formBelum, setFormBelum] = useState({
+  const [formBelum, setFormBelum] = useStickyState({
     tanggal: new Date().toISOString().split('T')[0],
     customer: '',
     ukuran: '1000x1200 mm',
     qty: 0,
     status: 'Chamber 1',
     monitoringLogs: []
-  });
+  }, 'kd_formBelum');
 
-  const [formSetelah, setFormSetelah] = useState({
+  const [formSetelah, setFormSetelah] = useStickyState({
     tanggalMulai: new Date().toISOString().split('T')[0],
     tanggalSelesai: new Date().toISOString().split('T')[0],
     customer: '',
@@ -57,9 +58,9 @@ export default function KilnDry({ user }) {
     kd: 'KD 01',
     hasil: 'Baik',
     catatan: ''
-  });
+  }, 'kd_formSetelah');
 
-  const [formListrik, setFormListrik] = useState({
+  const [formListrik, setFormListrik] = useStickyState({
     namaPt: '',
     kd: 'KD 01',
     qty: 0,
@@ -69,7 +70,7 @@ export default function KilnDry({ user }) {
     jamMulai: '08:00',
     tanggalSelesai: new Date().toISOString().split('T')[0],
     jamSelesai: '17:00'
-  });
+  }, 'kd_formListrik');
 
   useEffect(() => {
     const loadKDData = async () => {
@@ -83,10 +84,10 @@ export default function KilnDry({ user }) {
       setPalletTypes(types);
 
       if (types.length > 0) {
-        setFormBelum(prev => ({ ...prev, ukuran: types[0].ukuran }));
-        setFormSetelah(prev => ({ ...prev, ukuran: types[0].ukuran }));
-        setBelumKDItems([{ palletName: types[0].nama, ukuran: types[0].ukuran, qty: 0 }]);
-        setSetelahKDItems([{ palletName: types[0].nama, ukuran: types[0].ukuran, qty: 0 }]);
+        setFormBelum(prev => prev.ukuran ? prev : { ...prev, ukuran: types[0].ukuran });
+        setFormSetelah(prev => prev.ukuran ? prev : { ...prev, ukuran: types[0].ukuran });
+        setBelumKDItems(prev => prev[0]?.palletName ? prev : [{ palletName: types[0].nama, ukuran: types[0].ukuran, qty: 0 }]);
+        setSetelahKDItems(prev => prev[0]?.palletName ? prev : [{ palletName: types[0].nama, ukuran: types[0].ukuran, qty: 0 }]);
       }
     };
     loadKDData();

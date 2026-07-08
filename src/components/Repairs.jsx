@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Search, CheckCircle, Trash2, Edit3, X, Download, ChevronDown, ArrowUpDown, Calendar, Activity, Check } from 'lucide-react';
 
@@ -26,24 +27,24 @@ const parseRepairCatatan = (catatanStr, defaultUkuran = '1000x1200 mm', defaultQ
 export default function Repairs({ user }) {
   const [repairs, setRepairs] = useState([]);
   const [palletTypes, setPalletTypes] = useState([]);
-  const [subTab, setSubTab] = useState('aktivitas'); // 'aktivitas' or 'laporan'
+  const [subTab, setSubTab] = useStickyState('aktivitas', 'rep_subTab'); // 'aktivitas' or 'laporan'
   
   // Search & Filters for Aktivitas
   const [search, setSearch] = useState('');
   
   // States for multiple pallet items inside a single perbaikan session
-  const [repairItems, setRepairItems] = useState([{ palletName: '', ukuran: '1000x1200 mm', qtySelesai: 0, qtyScrap: 0 }]);
+  const [repairItems, setRepairItems] = useStickyState([{ palletName: '', ukuran: '1000x1200 mm', qtySelesai: 0, qtyScrap: 0 }], 'rep_repairItems');
   
   // Modals state
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useStickyState(false, 'rep_isModalOpen');
   const [editingItem, setEditingItem] = useState(null);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useStickyState({
     tanggal: new Date().toISOString().split('T')[0],
     petugas: 'Supriadi',
     keterangan: ''
-  });
+  }, 'rep_formData');
 
   // Report filters state
   const [reportType, setReportType] = useState('bulanan'); // 'harian', 'mingguan', 'bulanan'
@@ -61,12 +62,12 @@ export default function Repairs({ user }) {
       setPalletTypes(types);
 
       if (types.length > 0) {
-        setFormData(prev => ({ 
+        setFormData(prev => prev.petugas ? prev : { 
           ...prev, 
           petugas: user?.name || 'Supriadi',
           keterangan: ''
-        }));
-        setRepairItems([{ palletName: types[0].nama, ukuran: types[0].ukuran, qtySelesai: 0, qtyScrap: 0 }]);
+        });
+        setRepairItems(prev => prev[0]?.palletName ? prev : [{ palletName: types[0].nama, ukuran: types[0].ukuran, qtySelesai: 0, qtyScrap: 0 }]);
       }
     };
     loadRepairs();

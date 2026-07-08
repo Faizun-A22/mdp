@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Trash2, Edit3, X, Shield, Eye, EyeOff, User } from 'lucide-react';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useStickyState(false, 'um_isModalOpen');
   const [showPassword, setShowPassword] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useStickyState({
     name: '',
     username: '',
     password: '',
     role: 'user',
     avatar: ''
-  });
+  }, 'um_formData');
 
   useEffect(() => {
     const loadUsers = async () => {

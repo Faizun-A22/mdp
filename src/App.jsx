@@ -10,10 +10,11 @@ import Materials from './components/Materials';
 import Repairs from './components/Repairs';
 import UserManagement from './components/UserManagement';
 import { Menu } from 'lucide-react';
+import useStickyState from './utils/useStickyState';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useStickyState('dashboard', 'mdp_active_tab');
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 

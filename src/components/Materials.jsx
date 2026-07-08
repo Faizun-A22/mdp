@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Search, AlertTriangle, ArrowUp, ArrowDown, Edit3, Trash2, X, Calendar, FileSpreadsheet, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -17,13 +18,13 @@ export default function Materials({ user }) {
   const [selectedWeeklyDate, setSelectedWeeklyDate] = useState(new Date().toISOString().split('T')[0]);
   const [reportSearch, setReportSearch] = useState('');
   
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useStickyState(false, 'mat_isModalOpen');
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useStickyState(false, 'mat_isAdjustModalOpen');
   const [editingItem, setEditingItem] = useState(null);
   const [adjustingItem, setAdjustingItem] = useState(null);
 
   // Form states
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useStickyState({
     kode: '',
     nama: '',
     kategori: 'Bahan Penolong',
@@ -32,14 +33,14 @@ export default function Materials({ user }) {
     keluar: 0,
     satuan: 'PCS',
     minStok: 5
-  });
+  }, 'mat_formData');
 
-  const [adjustData, setAdjustData] = useState({
+  const [adjustData, setAdjustData] = useStickyState({
     type: 'masuk', // masuk or keluar
     qty: 0,
     tanggal: new Date().toISOString().split('T')[0],
     catatan: ''
-  });
+  }, 'mat_adjustData');
 
   useEffect(() => {
     const loadAllData = async () => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Search, ChevronDown, Trash2, Edit3, X, Filter, Download, Check, RefreshCw, Link, Loader2, AlertCircle, ArrowUpDown, Calendar } from 'lucide-react';
 
@@ -12,8 +13,8 @@ export default function StockPallet({ user }) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Modals state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useStickyState(false, 'sp_isModalOpen');
+  const [isTypeModalOpen, setIsTypeModalOpen] = useStickyState(false, 'sp_isTypeModalOpen');
 
   // Search & Filter
   const [search, setSearch] = useState('');
@@ -68,7 +69,7 @@ export default function StockPallet({ user }) {
   };
 
   // Form State - Transaction Mutasi
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useStickyState({
     tanggal: new Date().toISOString().split('T')[0],
     customer: '',
     ukuran: '',
@@ -80,14 +81,14 @@ export default function StockPallet({ user }) {
     palletKeluar: 0,
     returLumajang: 0,
     returCustomer: 0
-  });
+  }, 'sp_formData');
 
   // Form State - Master Jenis Pallet
-  const [typeFormData, setTypeFormData] = useState({
+  const [typeFormData, setTypeFormData] = useStickyState({
     nama: '',
     ukuran: '1000x1200 mm',
     keterangan: ''
-  });
+  }, 'sp_typeFormData');
 
   useEffect(() => {
     const loadAllData = async () => {
@@ -100,19 +101,29 @@ export default function StockPallet({ user }) {
       
       // Default form size and customer to the first available type, or standard
       if (types.length > 0) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const stockAwal = calculateStockAwalForLoadedData(recalculated, types[0].nama, types[0].ukuran, todayStr);
-
-        setFormData(prev => ({ 
-          ...prev, 
-          ukuran: types[0].ukuran, 
-          customer: types[0].nama,
-          stockAwal: stockAwal 
-        }));
-        setPalletTypeSearch(types[0].nama);
+        setFormData(prev => {
+          if (!prev.customer || !prev.ukuran) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const stockAwal = calculateStockAwalForLoadedData(recalculated, types[0].nama, types[0].ukuran, todayStr);
+            setPalletTypeSearch(types[0].nama);
+            return { 
+              ...prev, 
+              ukuran: types[0].ukuran, 
+              customer: types[0].nama,
+              stockAwal: stockAwal 
+            };
+          }
+          setPalletTypeSearch(prev.customer);
+          return prev;
+        });
       } else {
-        setFormData(prev => ({ ...prev, ukuran: '1000x1200 mm', customer: '', stockAwal: 0 }));
-        setPalletTypeSearch('');
+        setFormData(prev => {
+          if (!prev.customer || !prev.ukuran) {
+            setPalletTypeSearch('');
+            return { ...prev, ukuran: '1000x1200 mm', customer: '', stockAwal: 0 };
+          }
+          return prev;
+        });
       }
     };
     loadAllData();

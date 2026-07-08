@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Search, Trash2, Edit3, X, FileSpreadsheet, Download, Check, AlertCircle, Info, Send, RefreshCw, Loader2, Link, ChevronLeft, Calendar, FileText, BarChart2, Image, Undo } from 'lucide-react';
 
@@ -16,15 +17,15 @@ export default function Outstanding({ user }) {
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'report'
 
   // Modals state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isKirimanModalOpen, setIsKirimanModalOpen] = useState(false);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useStickyState(false, 'os_isModalOpen');
+  const [isEditModalOpen, setIsEditModalOpen] = useStickyState(false, 'os_isEditModalOpen');
+  const [isKirimanModalOpen, setIsKirimanModalOpen] = useStickyState(false, 'os_isKirimanModalOpen');
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useStickyState(false, 'os_isHistoryModalOpen');
   const [historyItem, setHistoryItem] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   
   // Form State - Tambah PO
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useStickyState({
     batchId: '',
     tanggal: new Date().toISOString().split('T')[0],
     tanggalKirim: '',
@@ -35,7 +36,7 @@ export default function Outstanding({ user }) {
     jumlahPo: 0,
     kiriman: 0,
     retur: 0
-  });
+  }, 'os_formData');
 
   // Form State - Edit PO
   const [editingItem, setEditingItem] = useState(null);
@@ -98,16 +99,26 @@ export default function Outstanding({ user }) {
     setPalletTypes(types);
     setDeliveries(dels);
     if (types.length > 0) {
-      setFormData(prev => ({
-        ...prev,
-        ukuran: types[0].ukuran,
-        customer: types[0].nama
-      }));
+      setFormData(prev => {
+        if (!prev.customer || !prev.ukuran) {
+          return {
+            ...prev,
+            ukuran: types[0].ukuran,
+            customer: types[0].nama
+          };
+        }
+        return prev;
+      });
     } else {
-      setFormData(prev => ({
-        ...prev,
-        ukuran: '1000x1200 mm'
-      }));
+      setFormData(prev => {
+        if (!prev.ukuran) {
+          return {
+            ...prev,
+            ukuran: '1000x1200 mm'
+          };
+        }
+        return prev;
+      });
     }
   };
 
