@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { storageAPI } from '../utils/storage';
 import { 
-  AreaChart, 
-  Area, 
+  ComposedChart,
+  Line,
+  PieChart, 
+  Pie, 
+  Cell,
   BarChart, 
   Bar, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
+  Tooltip,
+  Legend,
   ResponsiveContainer 
 } from 'recharts';
 import { 
@@ -27,19 +31,31 @@ export default function Dashboard() {
   const [materials, setMaterials] = useState([]);
   const [repairs, setRepairs] = useState([]);
 
+  const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#ec4899', '#14b8a6', '#6366f1'];
+
   useEffect(() => {
+    let isMounted = true;
     const loadDashboardData = async () => {
       const stock = await storageAPI.getStockPallets();
       const kd = await storageAPI.getKDBelum();
       const mats = await storageAPI.getMaterials();
       const reps = await storageAPI.getRepairs();
       
-      setStockPallets(stock);
-      setKdBelum(kd);
-      setMaterials(mats);
-      setRepairs(reps);
+      if (isMounted) {
+        setStockPallets(stock);
+        setKdBelum(kd);
+        setMaterials(mats);
+        setRepairs(reps);
+      }
     };
+    
     loadDashboardData();
+    const intervalId = setInterval(loadDashboardData, 3000); // Auto-refresh every 3 seconds
+    
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, []);
 
   // Group by customer and ukuran, sort ascending, find latest transaction for each group
@@ -127,14 +143,7 @@ export default function Dashboard() {
     'Stok Pallet': customerStockMap[cust]
   }));
 
-  // Chart 3: Materials Stock Levels
-  const materialStockData = materials.map(m => {
-    const stock = m.stokAwal + m.masuk - m.keluar;
-    return {
-      name: m.nama.length > 12 ? m.nama.substring(0, 12) + '...' : m.nama,
-      'Stok': stock
-    };
-  });
+
 
   return (
     <div className="space-y-8 p-1">
@@ -242,84 +251,24 @@ export default function Dashboard() {
           
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={palletFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorInbound" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorOutbound" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
+              <ComposedChart data={palletFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis stroke="#94a3b8" fontSize={11} axisLine={false} tickLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px', color: '#1e293b' }}
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '16px', color: '#1e293b', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
                   labelStyle={{ color: '#0f172a', fontWeight: 'bold' }}
                 />
-                <Area type="monotone" dataKey="Inbound" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorInbound)" />
-                <Area type="monotone" dataKey="Outbound" stroke="#f43f5e" strokeWidth={2.5} fillOpacity={1} fill="url(#colorOutbound)" />
-              </AreaChart>
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                <Bar dataKey="Inbound" barSize={20} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Outbound" barSize={20} fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                <Line type="monotone" dataKey="Stok" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Materials stock level chart */}
-        <div className="glass-card bg-white rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Stok Bahan & Alat Kerja</h3>
-            <p className="text-slate-500 text-xs font-medium">Visualisasi jumlah persediaan aktual barang</p>
-          </div>
-          
-          <div className="h-56 w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={materialStockData} layout="vertical" margin={{ top: 0, right: 10, left: -25, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                <XAxis type="number" stroke="#94a3b8" fontSize={9} tickLine={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={9} tickLine={false} width={80} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px', color: '#1e293b' }}
-                />
-                <Bar dataKey="Stok" fill="#06b6d4" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="text-[10px] text-slate-400 text-center mt-2 border-t border-slate-100 pt-2 font-medium">
-            Menampilkan tingkat stok bahan penolong & alat
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Statistik Stok Pallet per Customer */}
-        <div className="glass-card bg-white rounded-2xl p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-800">Statistik Stok Pallet per Customer</h3>
-              <p className="text-slate-500 text-xs mt-0.5 font-medium">Total persediaan pallet aktif di warehouse yang siap untuk dikirim</p>
-            </div>
-          </div>
-          
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={customerStockData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={11} axisLine={false} tickLine={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px', color: '#1e293b' }}
-                />
-                <Bar dataKey="Stok Pallet" fill="#4f46e5" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Critical tools warning panel */}
+        {/* Critical tools warning panel moved here */}
         <div className="glass-card bg-white rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 text-rose-600 mb-2">
@@ -328,10 +277,10 @@ export default function Dashboard() {
             </div>
             <p className="text-slate-500 text-xs mb-4 font-medium">Segera order ulang bahan penolong / alat kerja berikut</p>
             
-            <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
               {criticalItems.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-sm font-medium">
-                  ✓ Semua stok aman. Tidak ada stok kritis.
+                <div className="text-center py-12 text-slate-400 text-sm font-medium border border-dashed border-slate-200 rounded-xl">
+                  ✓ Semua stok aman.
                 </div>
               ) : (
                 criticalItems.map((item) => {
@@ -358,12 +307,58 @@ export default function Dashboard() {
           <div className="mt-4 pt-4 border-t border-slate-100">
             <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 flex items-center justify-between text-xs font-semibold">
               <span className="text-slate-600">Sistem Pemantauan Aset:</span>
-              <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase text-[10px]">
-                Aktif & Ringan
+              <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase text-[10px] flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div> Live
               </span>
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Statistik Stok Pallet per Customer - Now using PieChart */}
+        <div className="glass-card bg-white rounded-2xl p-6 lg:col-span-2 flex flex-col md:flex-row items-center gap-6">
+          <div className="md:w-1/3 flex flex-col justify-center">
+            <h3 className="text-xl font-bold text-slate-800">Distribusi Stok Pallet per Customer</h3>
+            <p className="text-slate-500 text-sm mt-2 font-medium">Persentase kepemilikan pallet aktif yang siap kirim.</p>
+            <div className="mt-6 flex flex-col gap-3">
+              {customerStockData.map((entry, index) => (
+                <div key={`legend-${index}`} className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full shadow-xs" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                  <span className="text-sm font-bold text-slate-600 flex-1">{entry.name}</span>
+                  <span className="text-sm font-black text-slate-800">{entry['Stok Pallet']}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="h-80 w-full md:w-2/3">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={customerStockData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={80}
+                  outerRadius={120}
+                  paddingAngle={5}
+                  dataKey="Stok Pallet"
+                  stroke="none"
+                >
+                  {customerStockData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '16px', color: '#1e293b', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+
       </div>
     </div>
   );
