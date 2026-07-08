@@ -58,6 +58,19 @@ export default function Materials({ user }) {
     return Number(item.stokAwal) + Number(item.masuk) - Number(item.keluar);
   };
 
+  const generateNextCode = (kategori, allMaterials) => {
+    const prefix = kategori === 'Bahan Penolong' ? 'BP-' : 'AK-';
+    const related = allMaterials.filter(m => m.kode && m.kode.startsWith(prefix));
+    if (related.length === 0) return `${prefix}001`;
+    let max = 0;
+    related.forEach(m => {
+      const numPart = m.kode.substring(prefix.length);
+      const num = parseInt(numPart, 10);
+      if (!isNaN(num) && num > max) max = num;
+    });
+    return `${prefix}${(max + 1).toString().padStart(3, '0')}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.nama || !formData.kode) {
@@ -276,6 +289,21 @@ export default function Materials({ user }) {
     });
   };
 
+  const openNewItemModal = () => {
+    setEditingItem(null);
+    setFormData({
+      kode: generateNextCode('Bahan Penolong', materials),
+      nama: '',
+      kategori: 'Bahan Penolong',
+      stokAwal: 0,
+      masuk: 0,
+      keluar: 0,
+      satuan: 'PCS',
+      minStok: 5
+    });
+    setIsModalOpen(true);
+  };
+
   const closeAdjustModal = () => {
     setIsAdjustModalOpen(false);
     setAdjustingItem(null);
@@ -298,7 +326,7 @@ export default function Materials({ user }) {
         </div>
         {isAdmin && activeSubTab === 'aktual' && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={openNewItemModal}
             className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-50 hover:to-indigo-50 text-white font-bold transition-all text-sm cursor-pointer shadow-md"
           >
             <Plus className="w-4 h-4" /> Tambah Barang Baru
@@ -775,7 +803,14 @@ export default function Materials({ user }) {
                   <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Kategori</label>
                   <select
                     value={formData.kategori}
-                    onChange={(e) => setFormData({ ...formData, kategori: e.target.value })}
+                    onChange={(e) => {
+                      const newCat = e.target.value;
+                      setFormData({ 
+                        ...formData, 
+                        kategori: newCat,
+                        kode: editingItem ? formData.kode : generateNextCode(newCat, materials)
+                      });
+                    }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold cursor-pointer"
                   >
                     <option value="Bahan Penolong">Bahan Penolong</option>

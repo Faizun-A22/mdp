@@ -28,7 +28,7 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSide
   }
 
   return (
-    <aside className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 flex flex-col h-screen shadow-lg md:shadow-none z-50 md:sticky md:top-0 transition-transform duration-300 ease-in-out ${
+    <aside className={`fixed inset-y-0 left-0 w-80 md:w-72 bg-white border-r border-slate-200 flex flex-col h-screen shadow-2xl md:shadow-none z-50 md:sticky md:top-0 transition-transform duration-300 ease-in-out ${
       isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
     }`}>
       {/* Brand Logo & Close Button */}
@@ -38,8 +38,8 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSide
             <Warehouse className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-extrabold text-slate-800 tracking-wide text-sm leading-tight">CV MITRA DUNIA</h1>
-            <p className="text-slate-500 font-bold text-[10px] tracking-widest uppercase">PALLETINDO</p>
+            <h1 className="font-extrabold text-slate-800 tracking-wide text-base md:text-sm leading-tight">CV MITRA DUNIA</h1>
+            <p className="text-slate-500 font-bold text-[11px] md:text-[10px] tracking-widest uppercase">PALLETINDO</p>
           </div>
         </div>
         
@@ -64,13 +64,13 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSide
                 setActiveTab(item.id);
                 if (setIsSidebarOpen) setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-semibold text-sm text-left cursor-pointer border ${
+              className={`w-full flex items-center gap-3 px-5 py-4 md:px-4 md:py-3 rounded-xl transition-all duration-200 font-semibold text-base md:text-sm text-left cursor-pointer border ${
                 isActive
                   ? 'bg-indigo-50 text-indigo-600 border-indigo-100/70 shadow-sm'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-transparent'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+              <Icon className={`w-6 h-6 md:w-5 md:h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
               {item.name}
             </button>
           );
@@ -86,8 +86,8 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSide
             className="w-10 h-10 rounded-xl object-cover ring-2 ring-indigo-100"
           />
           <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-bold text-slate-700 truncate">{user?.name}</h4>
-            <span className={`inline-flex px-2 py-0.5 mt-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+            <h4 className="text-base md:text-sm font-bold text-slate-700 truncate">{user?.name}</h4>
+            <span className={`inline-flex px-2 py-0.5 mt-0.5 rounded-full text-[11px] md:text-[10px] font-bold uppercase tracking-wider ${
               user?.role === 'admin' 
                 ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' 
                 : 'bg-emerald-50 text-emerald-600 border border-emerald-100'

@@ -108,9 +108,9 @@ export default function App() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 md:hidden cursor-pointer transition-all"
+              className="p-3 md:p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 md:hidden cursor-pointer transition-all shadow-sm"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-6 h-6 md:w-5 md:h-5" />
             </button>
             <div className="flex items-center gap-2">
               <span className="text-slate-400 text-xs font-semibold uppercase tracking-widest hidden xs:block">Aplikasi Warehouse</span>
@@ -137,7 +137,7 @@ export default function App() {
         </header>
 
         {/* Dashboard/Tab Page Content Wrapper */}
-        <div className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto pb-16">
+        <div className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-16">
           {renderContent()}
         </div>
       </main>
