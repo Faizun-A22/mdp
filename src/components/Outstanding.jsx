@@ -1434,8 +1434,8 @@ export default function Outstanding({ user }) {
 
       {/* Modal: Tambah PO Baru */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 my-8">
             <div className="bg-indigo-650 px-6 py-4 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base">Tambah PO Baru</h3>
@@ -1606,8 +1606,8 @@ export default function Outstanding({ user }) {
 
       {/* Modal: Edit PO */}
       {isEditModalOpen && editingItem && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 my-8">
             <div className="bg-slate-800 px-6 py-4 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base">Edit Detail PO</h3>
@@ -1784,8 +1784,8 @@ export default function Outstanding({ user }) {
 
       {/* Modal: Input Kiriman Baru */}
       {isKirimanModalOpen && kirimanItem && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 my-8">
             <div className="bg-indigo-600 px-5 py-4 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-sm">Input Kiriman Pallet</h3>
@@ -1872,8 +1872,8 @@ export default function Outstanding({ user }) {
 
       {/* Modal: Input Retur Baru */}
       {isReturModalOpen && returItem && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 my-8">
             <div className="bg-amber-650 px-5 py-4 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-sm">Input Retur Pallet</h3>
@@ -1964,8 +1964,8 @@ export default function Outstanding({ user }) {
 
       {/* Modal: Rincian Pengiriman (History) */}
       {isHistoryModalOpen && historyItem && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] my-8">
             <div className="bg-indigo-650 px-6 py-4 text-white flex items-center justify-between rounded-t-3xl flex-shrink-0">
               <div>
                 <h3 className="font-extrabold text-base">Rincian Pengiriman PO</h3>
@@ -2010,8 +2010,8 @@ export default function Outstanding({ user }) {
               </div>
 
               {/* Tabel Pengiriman */}
-              <div className="border border-slate-250/80 rounded-2xl overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs">
+              <div className="border border-slate-250/80 rounded-2xl overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs min-w-[600px]">
                   <thead>
                     <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200">
                       <th className="px-4 py-3 text-center w-12">No</th>
