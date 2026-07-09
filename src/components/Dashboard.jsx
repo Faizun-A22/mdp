@@ -22,7 +22,8 @@ import {
   Activity, 
   AlertTriangle, 
   ArrowUpRight, 
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -30,32 +31,29 @@ export default function Dashboard() {
   const [kdBelum, setKdBelum] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [repairs, setRepairs] = useState([]);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#ec4899', '#14b8a6', '#6366f1'];
 
+  const loadDashboardData = async () => {
+    setIsManualRefreshing(true);
+    const stock = await storageAPI.getStockPallets();
+    const kd = await storageAPI.getKDBelum();
+    const mats = await storageAPI.getMaterials();
+    const reps = await storageAPI.getRepairs();
+    
+    setStockPallets(stock);
+    setKdBelum(kd);
+    setMaterials(mats);
+    setRepairs(reps);
+    
+    setTimeout(() => {
+      setIsManualRefreshing(false);
+    }, 500);
+  };
+
   useEffect(() => {
-    let isMounted = true;
-    const loadDashboardData = async () => {
-      const stock = await storageAPI.getStockPallets();
-      const kd = await storageAPI.getKDBelum();
-      const mats = await storageAPI.getMaterials();
-      const reps = await storageAPI.getRepairs();
-      
-      if (isMounted) {
-        setStockPallets(stock);
-        setKdBelum(kd);
-        setMaterials(mats);
-        setRepairs(reps);
-      }
-    };
-    
     loadDashboardData();
-    const intervalId = setInterval(loadDashboardData, 3000); // Auto-refresh every 3 seconds
-    
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
   }, []);
 
   // Group by customer and ukuran, sort ascending, find latest transaction for each group
@@ -148,9 +146,18 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 p-1">
       {/* Page Header */}
-      <div>
-        <h2 className="text-3xl font-extrabold text-slate-800 tracking-wide">Ringkasan Warehouse & Kiln Dry</h2>
-        <p className="text-slate-500 mt-1 font-medium">Status dan aktivitas terkini CV Mitra Dunia Palletindo</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold text-slate-800 tracking-wide">Ringkasan Warehouse & Kiln Dry</h2>
+          <p className="text-slate-500 mt-1 font-medium">Status dan aktivitas terkini CV Mitra Dunia Palletindo</p>
+        </div>
+        <button
+          onClick={loadDashboardData}
+          className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-indigo-650 font-bold py-2.5 px-4.5 rounded-xl border border-slate-200 shadow-sm transition-all text-xs cursor-pointer w-fit"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin' : ''}`} />
+          <span>Refresh Data</span>
+        </button>
       </div>
 
       {/* Stats Cards Row */}

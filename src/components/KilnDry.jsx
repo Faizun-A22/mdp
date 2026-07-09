@@ -39,6 +39,11 @@ export default function KilnDry({ user }) {
   const [editingItem, setEditingItem] = useState(null);
   const [completingQueueItem, setCompletingQueueItem] = useState(null);
 
+  // States for searchable input dropdowns
+  const [activeBelumRowIndex, setActiveBelumRowIndex] = useState(null);
+  const [activeSetelahRowIndex, setActiveSetelahRowIndex] = useState(null);
+  const [showListrikDrop, setShowListrikDrop] = useState(false);
+
   // Forms State
   const [formBelum, setFormBelum] = useStickyState({
     tanggal: new Date().toISOString().split('T')[0],
@@ -1077,27 +1082,51 @@ export default function KilnDry({ user }) {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <div>
+                      <div className="relative">
                         <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Jenis Pallet</label>
-                        <select
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          placeholder="Ketik nama pallet..."
                           value={item.palletName}
+                          onFocus={() => setActiveBelumRowIndex(idx)}
+                          onBlur={() => setTimeout(() => setActiveBelumRowIndex(null), 150)}
                           onChange={(e) => {
-                            const selectedName = e.target.value;
-                            const match = palletTypes.find(pt => pt.nama === selectedName);
+                            const typedName = e.target.value;
                             const newItems = [...belumKDItems];
-                            newItems[idx].palletName = selectedName;
-                            newItems[idx].ukuran = match ? match.ukuran : '1000x1200 mm';
+                            newItems[idx].palletName = typedName;
+                            const match = palletTypes.find(pt => pt.nama.toLowerCase().trim() === typedName.toLowerCase().trim());
+                            if (match) {
+                              newItems[idx].ukuran = match.ukuran;
+                            }
                             setBelumKDItems(newItems);
                           }}
-                          className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                        >
-                          <option value="">-- Pilih Jenis Pallet --</option>
-                          {palletTypes.map(pt => (
-                            <option key={pt.id} value={pt.nama}>
-                              {pt.nama} ({pt.ukuran})
-                            </option>
-                          ))}
-                        </select>
+                          className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500"
+                        />
+                        {activeBelumRowIndex === idx && (() => {
+                          const filtered = palletTypes.filter(pt =>
+                            pt.nama.toLowerCase().includes(item.palletName.toLowerCase())
+                          );
+                          return filtered.length > 0 ? (
+                            <ul className="absolute z-50 mt-1 w-full bg-white border border-indigo-100 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                              {filtered.map((pt) => (
+                                <li
+                                  key={pt.id}
+                                  onMouseDown={() => {
+                                    const newItems = [...belumKDItems];
+                                    newItems[idx].palletName = pt.nama;
+                                    newItems[idx].ukuran = pt.ukuran;
+                                    setBelumKDItems(newItems);
+                                    setActiveBelumRowIndex(null);
+                                  }}
+                                  className="px-4 py-2 hover:bg-indigo-50 text-slate-700 text-xs font-semibold cursor-pointer border-b border-slate-50 last:border-b-0"
+                                >
+                                  {pt.nama} ({pt.ukuran})
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -1276,27 +1305,51 @@ export default function KilnDry({ user }) {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <div>
+                      <div className="relative">
                         <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Jenis Pallet</label>
-                        <select
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          placeholder="Ketik nama pallet..."
                           value={item.palletName}
+                          onFocus={() => setActiveSetelahRowIndex(idx)}
+                          onBlur={() => setTimeout(() => setActiveSetelahRowIndex(null), 150)}
                           onChange={(e) => {
-                            const selectedName = e.target.value;
-                            const match = palletTypes.find(pt => pt.nama === selectedName);
+                            const typedName = e.target.value;
                             const newItems = [...setelahKDItems];
-                            newItems[idx].palletName = selectedName;
-                            newItems[idx].ukuran = match ? match.ukuran : '1000x1200 mm';
+                            newItems[idx].palletName = typedName;
+                            const match = palletTypes.find(pt => pt.nama.toLowerCase().trim() === typedName.toLowerCase().trim());
+                            if (match) {
+                              newItems[idx].ukuran = match.ukuran;
+                            }
                             setSetelahKDItems(newItems);
                           }}
-                          className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                        >
-                          <option value="">-- Pilih Jenis Pallet --</option>
-                          {palletTypes.map(pt => (
-                            <option key={pt.id} value={pt.nama}>
-                              {pt.nama} ({pt.ukuran})
-                            </option>
-                          ))}
-                        </select>
+                          className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500"
+                        />
+                        {activeSetelahRowIndex === idx && (() => {
+                          const filtered = palletTypes.filter(pt =>
+                            pt.nama.toLowerCase().includes(item.palletName.toLowerCase())
+                          );
+                          return filtered.length > 0 ? (
+                            <ul className="absolute z-50 mt-1 w-full bg-white border border-indigo-100 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                              {filtered.map((pt) => (
+                                <li
+                                  key={pt.id}
+                                  onMouseDown={() => {
+                                    const newItems = [...setelahKDItems];
+                                    newItems[idx].palletName = pt.nama;
+                                    newItems[idx].ukuran = pt.ukuran;
+                                    setSetelahKDItems(newItems);
+                                    setActiveSetelahRowIndex(null);
+                                  }}
+                                  className="px-4 py-2 hover:bg-indigo-50 text-slate-700 text-xs font-semibold cursor-pointer border-b border-slate-50 last:border-b-0"
+                                >
+                                  {pt.nama} ({pt.ukuran})
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -1383,18 +1436,42 @@ export default function KilnDry({ user }) {
              <form onSubmit={handleListrikSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Jenis Pallet</label>
-                <select
-                  value={formListrik.namaPt}
-                  onChange={(e) => setFormListrik({ ...formListrik, namaPt: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold cursor-pointer"
-                >
-                  <option value="">-- Pilih Jenis Pallet --</option>
-                  {palletTypes.map(pt => (
-                    <option key={pt.id} value={pt.nama}>
-                      {pt.nama} ({pt.ukuran})
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Ketik nama pallet..."
+                    value={formListrik.namaPt}
+                    onFocus={() => setShowListrikDrop(true)}
+                    onBlur={() => setTimeout(() => setShowListrikDrop(false), 150)}
+                    onChange={(e) => {
+                      setFormListrik({ ...formListrik, namaPt: e.target.value });
+                      setShowListrikDrop(true);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                  />
+                  {showListrikDrop && (() => {
+                    const filtered = palletTypes.filter(pt =>
+                      pt.nama.toLowerCase().includes(formListrik.namaPt.toLowerCase())
+                    );
+                    return filtered.length > 0 ? (
+                      <ul className="absolute z-50 mt-1 w-full bg-white border border-indigo-100 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                        {filtered.map((pt) => (
+                          <li
+                            key={pt.id}
+                            onMouseDown={() => {
+                              setFormListrik({ ...formListrik, namaPt: pt.nama });
+                              setShowListrikDrop(false);
+                            }}
+                            className="px-4 py-2 hover:bg-indigo-50 text-slate-700 text-xs font-semibold cursor-pointer border-b border-slate-50 last:border-b-0"
+                          >
+                            {pt.nama} ({pt.ukuran})
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null;
+                  })()}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

@@ -39,6 +39,9 @@ export default function Repairs({ user }) {
   const [isModalOpen, setIsModalOpen] = useStickyState(false, 'rep_isModalOpen');
   const [editingItem, setEditingItem] = useState(null);
 
+  // States for searchable input dropdown
+  const [activeRepairRowIndex, setActiveRepairRowIndex] = useState(null);
+
   // Form state
   const [formData, setFormData] = useStickyState({
     tanggal: new Date().toISOString().split('T')[0],
@@ -913,22 +916,52 @@ export default function Repairs({ user }) {
                 <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                   {repairItems.map((item, idx) => (
                     <div key={idx} className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center bg-slate-50 p-2.5 rounded-xl border border-slate-150 relative">
-                      <div className="flex-1 min-w-0">
-                        <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">Jenis Pallet</label>
-                        <select
-                          value={item.palletName}
-                          onChange={(e) => {
-                            const name = e.target.value;
-                            const match = palletTypes.find(pt => pt.nama === name);
-                            setRepairItems(prev => prev.map((ri, riIdx) => riIdx === idx ? { ...ri, palletName: name, ukuran: match ? match.ukuran : '1000x1200 mm' } : ri));
-                          }}
-                          className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-500"
-                        >
-                          {palletTypes.map(pt => (
-                            <option key={pt.id} value={pt.nama}>{pt.nama} ({pt.ukuran})</option>
-                          ))}
-                        </select>
-                      </div>
+                        <div className="flex-1 min-w-0 relative">
+                          <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">Jenis Pallet</label>
+                          <input
+                            type="text"
+                            autoComplete="off"
+                            placeholder="Ketik nama pallet..."
+                            value={item.palletName}
+                            onFocus={() => setActiveRepairRowIndex(idx)}
+                            onBlur={() => setTimeout(() => setActiveRepairRowIndex(null), 150)}
+                            onChange={(e) => {
+                              const typedName = e.target.value;
+                              const match = palletTypes.find(pt => pt.nama.toLowerCase().trim() === typedName.toLowerCase().trim());
+                              setRepairItems(prev => prev.map((ri, riIdx) => riIdx === idx ? {
+                                ...ri,
+                                palletName: typedName,
+                                ukuran: match ? match.ukuran : ri.ukuran
+                              } : ri));
+                            }}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-500"
+                          />
+                          {activeRepairRowIndex === idx && (() => {
+                            const filtered = palletTypes.filter(pt =>
+                              pt.nama.toLowerCase().includes(item.palletName.toLowerCase())
+                            );
+                            return filtered.length > 0 ? (
+                              <ul className="absolute z-50 mt-1 w-full bg-white border border-indigo-100 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                                {filtered.map((pt) => (
+                                  <li
+                                    key={pt.id}
+                                    onMouseDown={() => {
+                                      setRepairItems(prev => prev.map((ri, riIdx) => riIdx === idx ? {
+                                        ...ri,
+                                        palletName: pt.nama,
+                                        ukuran: pt.ukuran
+                                      } : ri));
+                                      setActiveRepairRowIndex(null);
+                                    }}
+                                    className="px-4 py-2 hover:bg-indigo-50 text-slate-700 text-xs font-semibold cursor-pointer border-b border-slate-50 last:border-b-0 text-left"
+                                  >
+                                    {pt.nama} ({pt.ukuran})
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null;
+                          })()}
+                        </div>
                       
                       <div className="flex gap-2 w-full sm:w-auto">
                         <div className="flex-1 sm:w-20">
