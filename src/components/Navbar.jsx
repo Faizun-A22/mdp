@@ -21,8 +21,6 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSide
     { id: 'kiln-dry', name: 'Kiln Dry (KD)', icon: Thermometer },
     { id: 'materials', name: 'Bahan & Alat Kerja', icon: Wrench },
     { id: 'repairs', name: 'Repair Warehouse', icon: Activity },
-    { id: 'ai-advisor', name: 'AI Advisor & Security', icon: Brain },
-    { id: 'ai-chat', name: 'AIBOS Consultant', icon: MessageSquare },
   ];
 
   // Admin-only menu items

@@ -25,6 +25,8 @@ export default function StockPallet({ user }) {
   // SJ Keluar states
   const [outstandingPOs, setOutstandingPOs] = useState([]);
   const [isSjModalOpen, setIsSjModalOpen] = useState(false);
+  const [reffInput, setReffInput] = useState('');
+  const [showReffSuggestions, setShowReffSuggestions] = useState(false);
   const [sjFormData, setSjFormData] = useState({
     tanggal: new Date().toISOString().split('T')[0],
     palletType: '',
@@ -786,6 +788,7 @@ export default function StockPallet({ user }) {
     setData(updatedMutasiData);
     await storageAPI.saveStockPallets(updatedMutasiData);
 
+    setReffInput('');
     setSjFormData({
       tanggal: new Date().toISOString().split('T')[0],
       palletType: '',
@@ -2608,32 +2611,97 @@ export default function StockPallet({ user }) {
                   />
                 </div>
 
-                {/* Dropdown No. Reff dari PO */}
-                <div>
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Pilih No. Reff / PO</label>
-                  <select
+                {/* Autocomplete Input No. Reff dari PO */}
+                <div className="relative">
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">No. Reff (Ketik/Pilih Rekomendasi)</label>
+                  <input
+                    type="text"
                     required
                     disabled={!sjFormData.palletType}
-                    value={sjFormData.poId}
-                    onChange={(e) => setSjFormData({ ...sjFormData, poId: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                  >
-                    <option value="">-- Pilih No. Reff / PO --</option>
-                    {outstandingPOs
-                      .filter(po => po.batchId === sjFormData.palletType && po.sisaPo > 0)
-                      .map(po => (
-                        <option key={po.id} value={po.id}>
-                          {po.noReff || '(Tanpa Reff)'} - {po.customer} (PO: {po.nomorPo} / Sisa: {po.sisaPo})
-                        </option>
-                      ))
-                    }
-                  </select>
+                    value={reffInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setReffInput(val);
+                      // Try to auto-resolve matching PO if typed exactly
+                      const matched = outstandingPOs.find(po => 
+                        po.batchId === sjFormData.palletType && 
+                        po.sisaPo > 0 && 
+                        (po.noReff || '').toLowerCase() === val.toLowerCase().trim()
+                      );
+                      setSjFormData(prev => ({
+                        ...prev,
+                        poId: matched ? matched.id : ''
+                      }));
+                      setShowReffSuggestions(true);
+                    }}
+                    onFocus={() => {
+                      setShowReffSuggestions(true);
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowReffSuggestions(false), 200);
+                    }}
+                    placeholder={sjFormData.palletType ? "Ketik nomor Reff atau pilih dari rekomendasi..." : "Pilih Jenis Pallet terlebih dahulu..."}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    autoComplete="off"
+                  />
+                  {showReffSuggestions && sjFormData.palletType && (
+                    <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-[999]">
+                      {(() => {
+                        const filtered = outstandingPOs.filter(po => 
+                          po.batchId === sjFormData.palletType && 
+                          po.sisaPo > 0 &&
+                          (po.noReff || '').toLowerCase().includes(reffInput.toLowerCase())
+                        );
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="px-4 py-3 text-slate-400 text-xs text-center font-medium">
+                              Tidak ada PO/Reff aktif untuk jenis pallet ini
+                            </div>
+                          );
+                        }
+                        return filtered.map(po => (
+                          <button
+                            key={po.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setReffInput(po.noReff || '');
+                              setSjFormData(prev => ({ ...prev, poId: po.id }));
+                              setShowReffSuggestions(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 text-slate-700 hover:text-slate-900 font-semibold transition-all border-b border-slate-100 last:border-none cursor-pointer flex justify-between items-center"
+                          >
+                            <span>{po.noReff || '(Tanpa Reff)'}</span>
+                            <span className="text-xs text-slate-400 font-medium">PO: {po.nomorPo} - {po.customer}</span>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  )}
                   {!sjFormData.palletType && (
                     <span className="text-[10px] text-amber-600 font-medium block mt-1">
-                      *Pilih Jenis Pallet terlebih dahulu untuk memuat daftar No. Reff
+                      *Pilih Jenis Pallet terlebih dahulu untuk memuat daftar rekomendasi No. Reff
                     </span>
                   )}
                 </div>
+
+                {/* Tampilkan PO & Customer Otomatis */}
+                {sjFormData.poId && (() => {
+                  const selectedPo = outstandingPOs.find(p => p.id === sjFormData.poId);
+                  if (selectedPo) {
+                    return (
+                      <div className="animate-fadeIn bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
+                        <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider">Nomor PO & Customer Terkait (Otomatis)</label>
+                        <div className="text-sm font-bold text-slate-800">
+                          {selectedPo.nomorPo} ({selectedPo.customer})
+                        </div>
+                        <span className="text-[11px] text-indigo-650 font-bold block">
+                          Sisa PO: {selectedPo.sisaPo} pcs
+                        </span>
+                      </div>
+                    );
+                  }
+                })()}
 
                 {/* No Reff Suffix (Huruf Urutan) */}
                 <div>

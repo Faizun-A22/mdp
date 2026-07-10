@@ -9,8 +9,6 @@ import KilnDry from './components/KilnDry';
 import Materials from './components/Materials';
 import Repairs from './components/Repairs';
 import UserManagement from './components/UserManagement';
-import AiAdvisor from './components/AiAdvisor';
-import AiChat from './components/AiChat';
 import { Menu } from 'lucide-react';
 import useStickyState from './utils/useStickyState';
 
@@ -76,10 +74,6 @@ export default function App() {
         return <Materials user={currentUser} />;
       case 'repairs':
         return <Repairs user={currentUser} />;
-      case 'ai-advisor':
-        return <AiAdvisor />;
-      case 'ai-chat':
-        return <AiChat />;
       case 'users':
         return currentUser.role === 'admin' ? <UserManagement /> : <Dashboard />;
       default:

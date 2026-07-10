@@ -491,25 +491,8 @@ const recalculatePOsWithMutasi = (pos, mutasiList, dels = []) => {
     }
   });
 
-  // 2. Separate POs into Manually Managed and Automatically Managed
-  const sortedPOs = [...pos].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
-  
-  const manualPOs = [];
-  const autoPOs = [];
-  
-  sortedPOs.forEach(po => {
-    const hasManualDels = (delsByPoId[po.id] !== undefined && delsByPoId[po.id] > 0) || 
-                          (returByPoId[po.id] !== undefined && returByPoId[po.id] > 0);
-    if (hasManualDels) {
-      manualPOs.push(po);
-    } else {
-      autoPOs.push(po);
-    }
-  });
-
-  // 3. For Manually Managed POs, calculate stats directly
-  const updatedPOsMap = {};
-  manualPOs.forEach(po => {
+  // Calculate stats directly based strictly on explicit deliveries and returns
+  return pos.map(po => {
     const manualSum = delsByPoId[po.id] || 0;
     const manualRetur = returByPoId[po.id] || 0;
     
@@ -518,53 +501,8 @@ const recalculatePOsWithMutasi = (pos, mutasiList, dels = []) => {
     po.retur = manualRetur;
     po.sisaPo = Math.max(0, Number(po.jumlahPo) - po.kiriman + po.retur);
     
-    updatedPOsMap[po.id] = po;
+    return po;
   });
-
-  // 4. For Automatically Managed POs, initialize and allocate mutasi out chronologically
-  // Auto POs will ONLY be allocated mutasi logs where:
-  // - m.customer matches po.customer
-  // - m.ukuran matches po.ukuran
-  // - m.tanggal >= po.tanggal
-  autoPOs.forEach(po => {
-    po.kirimanAwal = 0;
-    po.kiriman = 0;
-    po.retur = 0;
-    po.sisaPo = Number(po.jumlahPo);
-    updatedPOsMap[po.id] = po;
-  });
-
-  // Sort mutasiList chronologically ascending
-  const sortedMutasi = [...mutasiList]
-    .filter(m => Number(m.palletKeluar || 0) > 0)
-    .sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
-
-  sortedMutasi.forEach(m => {
-    const cust = (m.customer || '').toLowerCase().trim();
-    const sz = (m.ukuran || '').toLowerCase().trim();
-    let unallocatedQty = Number(m.palletKeluar || 0);
-
-    for (let i = 0; i < autoPOs.length; i++) {
-      const po = autoPOs[i];
-      const poCust = (po.customer || '').toLowerCase().trim();
-      const poSz = (po.ukuran || '').toLowerCase().trim();
-
-      // Only allocate if customer and size match, and the mutation is on or after the PO date
-      if (poCust === cust && poSz === sz && new Date(po.tanggal) <= new Date(m.tanggal)) {
-        const remainingCapacity = Math.max(0, Number(po.jumlahPo) - po.kiriman);
-        if (remainingCapacity > 0 && unallocatedQty > 0) {
-          const allocation = Math.min(remainingCapacity, unallocatedQty);
-          po.kiriman += allocation;
-          po.sisaPo = Math.max(0, Number(po.jumlahPo) - po.kiriman);
-          unallocatedQty -= allocation;
-        }
-      }
-      if (unallocatedQty <= 0) break;
-    }
-  });
-
-  // Map back to the original array structure to preserve order
-  return pos.map(po => updatedPOsMap[po.id] || po);
 };
 
 // --- GENERIC SYNC TABLE HELPER ---
