@@ -27,6 +27,10 @@ export default function StockPallet({ user }) {
   const [isSjModalOpen, setIsSjModalOpen] = useState(false);
   const [reffInput, setReffInput] = useState('');
   const [showReffSuggestions, setShowReffSuggestions] = useState(false);
+  const [sjPalletTypeSearch, setSjPalletTypeSearch] = useState('');
+  const [showSjPalletDropdown, setShowSjPalletDropdown] = useState(false);
+  const [sjDropdownPos, setSjDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const sjPalletSearchInputRef = useRef(null);
   const [sjFormData, setSjFormData] = useState({
     tanggal: new Date().toISOString().split('T')[0],
     palletType: '',
@@ -261,18 +265,34 @@ export default function StockPallet({ user }) {
     startOfMonth.setHours(0, 0, 0, 0);
 
     return palletTypes.map(type => {
+      // Find the most recent OPNAME checkpoint for this pallet type on or before targetDate
+      const typeTxSorted = data
+        .filter(item => item.customer === type.nama && 
+                        item.ukuran === type.ukuran && 
+                        new Date(item.tanggal) <= targetDate)
+        .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+      const lastOpnameTx = typeTxSorted.find(item => item.subcontNama === 'OPNAME');
+      const checkpointDateStr = lastOpnameTx ? lastOpnameTx.tanggal : null;
+
       const allTxUpToDate = data.filter(
         item => item.customer === type.nama && 
                 item.ukuran === type.ukuran && 
                 new Date(item.tanggal) <= targetDate
       );
 
-      const monthTransactions = data.filter(
-        item => item.customer === type.nama && 
-                item.ukuran === type.ukuran && 
-                new Date(item.tanggal) >= startOfMonth &&
-                new Date(item.tanggal) <= targetDate
-      );
+      // Only sum transactions that happened on or after the checkpoint date within this month
+      const monthTransactions = data.filter(item => {
+        const matchesType = item.customer === type.nama && item.ukuran === type.ukuran;
+        const withinMonth = new Date(item.tanggal) >= startOfMonth && new Date(item.tanggal) <= targetDate;
+        if (!matchesType || !withinMonth) return false;
+        
+        // If there is an OPNAME checkpoint, ignore transactions before it
+        if (checkpointDateStr) {
+          return item.tanggal >= checkpointDateStr;
+        }
+        return true;
+      });
 
       const totalTx = monthTransactions.length;
       const totalProduksi = monthTransactions.reduce((acc, item) => acc + Number(item.produksi || 0), 0);
@@ -789,6 +809,7 @@ export default function StockPallet({ user }) {
     await storageAPI.saveStockPallets(updatedMutasiData);
 
     setReffInput('');
+    setSjPalletTypeSearch('');
     setSjFormData({
       tanggal: new Date().toISOString().split('T')[0],
       palletType: '',
@@ -1034,7 +1055,19 @@ export default function StockPallet({ user }) {
                   Input Transaksi
                 </button>
                 <button
-                  onClick={() => setIsSjModalOpen(true)}
+                  onClick={() => {
+                    setReffInput('');
+                    setSjPalletTypeSearch('');
+                    setSjFormData({
+                      tanggal: new Date().toISOString().split('T')[0],
+                      palletType: '',
+                      ukuran: '',
+                      poId: '',
+                      reffSuffix: '',
+                      qtyKeluar: 0
+                    });
+                    setIsSjModalOpen(true);
+                  }}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold transition-all shadow-md shadow-emerald-600/10 cursor-pointer text-xs"
                 >
                   <Plus className="w-4 h-4" />
@@ -2575,28 +2608,79 @@ export default function StockPallet({ user }) {
                 </div>
 
                 {/* Jenis Pallet */}
-                <div>
+                <div className="relative">
                   <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Jenis Pallet</label>
-                  <select
+                  <input
+                    ref={sjPalletSearchInputRef}
+                    type="text"
                     required
-                    value={sjFormData.palletType}
+                    placeholder="🔍 Ketik untuk cari Jenis Pallet..."
+                    value={sjPalletTypeSearch}
                     onChange={(e) => {
-                      const ptName = e.target.value;
-                      const pt = palletTypes.find(p => p.nama === ptName);
-                      setSjFormData({
-                        ...sjFormData,
-                        palletType: ptName,
-                        poId: '',
-                        ukuran: pt ? pt.ukuran : ''
-                      });
+                      const val = e.target.value;
+                      setSjPalletTypeSearch(val);
+                      if (sjPalletSearchInputRef.current) {
+                        const rect = sjPalletSearchInputRef.current.getBoundingClientRect();
+                        setSjDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                      }
+                      setShowSjPalletDropdown(true);
                     }}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold cursor-pointer"
-                  >
-                    <option value="">-- Pilih Jenis Pallet --</option>
-                    {palletTypes.map(pt => (
-                      <option key={pt.id} value={pt.nama}>{pt.nama}</option>
-                    ))}
-                  </select>
+                    onFocus={() => {
+                      if (sjPalletSearchInputRef.current) {
+                        sjPalletSearchInputRef.current.select();
+                        const rect = sjPalletSearchInputRef.current.getBoundingClientRect();
+                        setSjDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                      }
+                      setShowSjPalletDropdown(true);
+                    }}
+                    onBlur={() => setTimeout(() => setShowSjPalletDropdown(false), 200)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
+                    autoComplete="off"
+                  />
+
+                  {showSjPalletDropdown && (
+                    <div
+                      style={{ position: 'fixed', top: sjDropdownPos.top, left: sjDropdownPos.left, width: sjDropdownPos.width, zIndex: 99999 }}
+                      className="bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto"
+                    >
+                      {(() => {
+                        const filtered = palletTypes.filter(pt => {
+                          if (!sjPalletTypeSearch) return true;
+                          return pt.nama.toLowerCase().includes(sjPalletTypeSearch.toLowerCase()) ||
+                                 pt.ukuran.toLowerCase().includes(sjPalletTypeSearch.toLowerCase());
+                        });
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="px-4 py-3 text-slate-400 text-xs text-center font-medium">
+                              Jenis pallet tidak ditemukan
+                            </div>
+                          );
+                        }
+                        return filtered.map(pt => (
+                          <button
+                            key={pt.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setSjFormData(prev => ({
+                                ...prev,
+                                palletType: pt.nama,
+                                poId: '',
+                                ukuran: pt.ukuran
+                              }));
+                              setSjPalletTypeSearch(pt.nama);
+                              setReffInput('');
+                              setShowSjPalletDropdown(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 text-slate-700 hover:text-slate-900 font-semibold transition-all border-b border-slate-100 last:border-none cursor-pointer flex justify-between items-center"
+                          >
+                            <span>{pt.nama}</span>
+                            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-bold">{pt.ukuran}</span>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                 {/* Ukuran Pallet (Otomatis) */}
