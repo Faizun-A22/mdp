@@ -22,6 +22,18 @@ export default function StockPallet({ user }) {
   const [currentPage, setCurrentPage] = useState(1);
   const ROWS_PER_PAGE = 10;
 
+  // SJ Keluar states
+  const [outstandingPOs, setOutstandingPOs] = useState([]);
+  const [isSjModalOpen, setIsSjModalOpen] = useState(false);
+  const [sjFormData, setSjFormData] = useState({
+    tanggal: new Date().toISOString().split('T')[0],
+    palletType: '',
+    ukuran: '',
+    poId: '',
+    reffSuffix: '',
+    qtyKeluar: 0
+  });
+
   // Edit Item Trackers
   const [editingItem, setEditingItem] = useState(null);
   const [editingType, setEditingType] = useState(null);
@@ -125,6 +137,8 @@ export default function StockPallet({ user }) {
           return prev;
         });
       }
+      const pos = await storageAPI.getOutstandingPOs();
+      setOutstandingPOs(pos);
     };
     loadAllData();
   }, []);
@@ -686,6 +700,104 @@ export default function StockPallet({ user }) {
     closeModal();
   };
 
+  const handleSjSubmit = async (e) => {
+    e.preventDefault();
+    const { tanggal, palletType, poId, reffSuffix, qtyKeluar } = sjFormData;
+
+    if (!palletType) {
+      alert('Silakan pilih Jenis Pallet!');
+      return;
+    }
+    if (!poId) {
+      alert('Silakan pilih No. Reff / PO!');
+      return;
+    }
+    if (qtyKeluar <= 0) {
+      alert('Jumlah pallet keluar harus lebih besar dari 0!');
+      return;
+    }
+
+    const selectedPo = outstandingPOs.find(p => p.id === poId);
+    if (!selectedPo) {
+      alert('PO tidak ditemukan!');
+      return;
+    }
+
+    if (qtyKeluar > selectedPo.sisaPo) {
+      if (!window.confirm(`Jumlah kiriman (${qtyKeluar} pcs) melebihi sisa PO (${selectedPo.sisaPo} pcs). Apakah Anda yakin ingin melanjutkan?`)) {
+        return;
+      }
+    }
+
+    const fullReff = (selectedPo.noReff || '') + reffSuffix.trim();
+
+    // 1. Simpan pengiriman baru ke PO Deliveries
+    const newDelivery = {
+      id: 'del_' + Date.now(),
+      poId: selectedPo.id,
+      tanggalKirim: tanggal,
+      noReff: fullReff,
+      qtyKirim: qtyKeluar
+    };
+
+    const currentDeliveries = await storageAPI.getDeliveries();
+    const updatedDeliveries = [...currentDeliveries, newDelivery];
+    await storageAPI.saveDeliveries(updatedDeliveries);
+
+    // 2. Hitung ulang kiriman dan sisa PO
+    const currentPOs = await storageAPI.getOutstandingPOs();
+    const poDels = updatedDeliveries.filter(d => d.poId === selectedPo.id);
+    const totalKiriman = poDels.filter(d => d.qtyKirim > 0).reduce((sum, d) => sum + d.qtyKirim, 0);
+    const totalRetur = poDels.filter(d => d.qtyKirim < 0).reduce((sum, d) => sum + Math.abs(d.qtyKirim), 0);
+
+    const updatedPOs = currentPOs.map(po => {
+      if (po.id === selectedPo.id) {
+        return {
+          ...po,
+          kiriman: totalKiriman,
+          kirimanAwal: totalKiriman,
+          sisaPo: Math.max(0, Number(po.jumlahPo) - totalKiriman + totalRetur),
+          noReff: fullReff
+        };
+      }
+      return po;
+    });
+    await storageAPI.saveOutstandingPOs(updatedPOs);
+    setOutstandingPOs(updatedPOs);
+
+    // 3. Tambahkan ke Mutasi Stock Pallet sebagai Pallet Keluar
+    const newMutasi = {
+      id: 'sp_' + Date.now(),
+      tanggal: tanggal,
+      customer: selectedPo.customer,
+      ukuran: selectedPo.ukuran,
+      produksi: 0,
+      stockAwal: calculateStockAwalForLoadedData(data, selectedPo.customer, selectedPo.ukuran, tanggal),
+      dariLumajang: 0,
+      dariSubcont: 0,
+      subcontNama: fullReff,
+      palletKeluar: qtyKeluar,
+      returLumajang: 0,
+      returCustomer: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedMutasiData = recalculateStockHistory([...data, newMutasi]);
+    setData(updatedMutasiData);
+    await storageAPI.saveStockPallets(updatedMutasiData);
+
+    setSjFormData({
+      tanggal: new Date().toISOString().split('T')[0],
+      palletType: '',
+      ukuran: '',
+      poId: '',
+      reffSuffix: '',
+      qtyKeluar: 0
+    });
+    setIsSjModalOpen(false);
+    alert('Surat Jalan Keluar berhasil disimpan dan PO telah diupdate!');
+  };
+
   const handleEdit = (item) => {
     setEditingItem(item);
     setFormData({ ...item });
@@ -918,6 +1030,13 @@ export default function StockPallet({ user }) {
                   <Plus className="w-4 h-4" />
                   Input Transaksi
                 </button>
+                <button
+                  onClick={() => setIsSjModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold transition-all shadow-md shadow-emerald-600/10 cursor-pointer text-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  Input SJ Keluar
+                </button>
               </div>
             </div>
           )}
@@ -1098,9 +1217,16 @@ export default function StockPallet({ user }) {
                             </td>
                             <td className="py-4 px-4">
                               <div className="font-bold text-slate-800 truncate" title={item.customer}>{item.customer}</div>
-                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
-                                {item.ukuran}
-                              </span>
+                              <div className="flex flex-wrap gap-1 items-center mt-1">
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
+                                  {item.ukuran}
+                                </span>
+                                {item.palletKeluar > 0 && item.subcontNama && (
+                                  <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-[10px] border border-indigo-150 text-indigo-650 font-bold">
+                                    Reff: {item.subcontNama}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-4 px-4 text-center text-slate-500">{item.stockAwal}</td>
                             <td className="py-4 px-4 text-center text-indigo-655 font-bold">
@@ -1211,9 +1337,16 @@ export default function StockPallet({ user }) {
                       
                       <div>
                         <h4 className="font-extrabold text-slate-800 text-sm">{item.customer}</h4>
-                        <span className="inline-block mt-1 px-2 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
-                          {item.ukuran}
-                        </span>
+                        <div className="flex flex-wrap gap-1 items-center mt-1">
+                          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
+                            {item.ukuran}
+                          </span>
+                          {item.palletKeluar > 0 && item.subcontNama && (
+                            <span className="inline-block px-2 py-0.5 rounded bg-indigo-50 text-[10px] border border-indigo-150 text-indigo-650 font-bold">
+                              Reff: {item.subcontNama}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-xl text-center text-[11px] border border-slate-100">
@@ -2403,6 +2536,158 @@ export default function StockPallet({ user }) {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Input SJ Keluar Modal */}
+      {isSjModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-xl bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden my-8">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50">
+              <h3 className="text-xl font-extrabold text-slate-800">
+                Input SJ Keluar (Surat Jalan)
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setIsSjModalOpen(false)} 
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSjSubmit} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              <div className="space-y-4">
+                {/* Tanggal */}
+                <div>
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Tanggal Kirim</label>
+                  <input
+                    type="date"
+                    required
+                    value={sjFormData.tanggal}
+                    onChange={(e) => setSjFormData({ ...sjFormData, tanggal: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold"
+                  />
+                </div>
+
+                {/* Jenis Pallet */}
+                <div>
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Jenis Pallet</label>
+                  <select
+                    required
+                    value={sjFormData.palletType}
+                    onChange={(e) => {
+                      const ptName = e.target.value;
+                      const pt = palletTypes.find(p => p.nama === ptName);
+                      setSjFormData({
+                        ...sjFormData,
+                        palletType: ptName,
+                        poId: '',
+                        ukuran: pt ? pt.ukuran : ''
+                      });
+                    }}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Pilih Jenis Pallet --</option>
+                    {palletTypes.map(pt => (
+                      <option key={pt.id} value={pt.nama}>{pt.nama}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Ukuran Pallet (Otomatis) */}
+                <div>
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Ukuran Pallet (Otomatis)</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={sjFormData.ukuran || ''}
+                    placeholder="Ukuran terisi otomatis..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-sm font-semibold"
+                  />
+                </div>
+
+                {/* Dropdown No. Reff dari PO */}
+                <div>
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Pilih No. Reff / PO</label>
+                  <select
+                    required
+                    disabled={!sjFormData.palletType}
+                    value={sjFormData.poId}
+                    onChange={(e) => setSjFormData({ ...sjFormData, poId: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  >
+                    <option value="">-- Pilih No. Reff / PO --</option>
+                    {outstandingPOs
+                      .filter(po => po.batchId === sjFormData.palletType && po.sisaPo > 0)
+                      .map(po => (
+                        <option key={po.id} value={po.id}>
+                          {po.noReff || '(Tanpa Reff)'} - {po.customer} (PO: {po.nomorPo} / Sisa: {po.sisaPo})
+                        </option>
+                      ))
+                    }
+                  </select>
+                  {!sjFormData.palletType && (
+                    <span className="text-[10px] text-amber-600 font-medium block mt-1">
+                      *Pilih Jenis Pallet terlebih dahulu untuk memuat daftar No. Reff
+                    </span>
+                  )}
+                </div>
+
+                {/* No Reff Suffix (Huruf Urutan) */}
+                <div>
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Huruf Urutan No. Reff (Suffix)</label>
+                  <input
+                    type="text"
+                    value={sjFormData.reffSuffix}
+                    onChange={(e) => setSjFormData({ ...sjFormData, reffSuffix: e.target.value })}
+                    placeholder="Contoh: a, b, c, atau d..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold"
+                  />
+                </div>
+
+                {/* Qty Keluar */}
+                <div>
+                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Jumlah Pallet Keluar</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={sjFormData.qtyKeluar || ''}
+                    onChange={(e) => setSjFormData({ ...sjFormData, qtyKeluar: parseInt(e.target.value) || 0 })}
+                    placeholder="Masukkan jumlah pallet..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold"
+                  />
+                  {sjFormData.poId && (() => {
+                    const selectedPo = outstandingPOs.find(p => p.id === sjFormData.poId);
+                    if (selectedPo) {
+                      return (
+                        <span className="text-[10px] text-indigo-600 font-semibold block mt-1">
+                          *Batas maksimal kirim untuk PO ini adalah {selectedPo.sisaPo} pcs
+                        </span>
+                      );
+                    }
+                  })()}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsSjModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all text-sm font-bold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold transition-all shadow-md shadow-emerald-600/10 cursor-pointer text-sm"
+                >
+                  Kirim & Simpan SJ
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
