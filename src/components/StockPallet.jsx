@@ -18,7 +18,7 @@ export default function StockPallet({ user }) {
 
   // Search & Filter
   const [search, setSearch] = useState('');
-  const [selectedSize, setSelectedSize] = useState('Semua');
+  const [selectedMutasiType, setSelectedMutasiType] = useState('Semua');
   const [currentPage, setCurrentPage] = useState(1);
   const ROWS_PER_PAGE = 10;
 
@@ -130,9 +130,6 @@ export default function StockPallet({ user }) {
   }, []);
 
   const isAdmin = user?.role === 'admin';
-
-  // Dynamic filter sizes from data list
-  const sizes = ['Semua', ...new Set(data.map(item => item.ukuran).filter(Boolean))];
 
   function calculateTotalStock(item) {
     if (!item) return 0;
@@ -789,7 +786,17 @@ export default function StockPallet({ user }) {
   const filteredData = data.filter(item => {
     const matchesSearch = item.customer.toLowerCase().includes(search.toLowerCase()) || 
                           item.ukuran.toLowerCase().includes(search.toLowerCase());
-    const matchesSize = selectedSize === 'Semua' || item.ukuran === selectedSize;
+    
+    let matchesMutasiType = true;
+    if (selectedMutasiType === 'Subcont') {
+      matchesMutasiType = Number(item.dariSubcont || 0) > 0;
+    } else if (selectedMutasiType === 'Lumajang') {
+      matchesMutasiType = Number(item.dariLumajang || 0) > 0;
+    } else if (selectedMutasiType === 'Kedatangan (Keduanya)') {
+      matchesMutasiType = Number(item.dariLumajang || 0) > 0 || Number(item.dariSubcont || 0) > 0;
+    } else if (selectedMutasiType === 'Keluar') {
+      matchesMutasiType = Number(item.palletKeluar || 0) > 0;
+    }
     
     let matchesMonth = true;
     if (filterMonth !== 'all' && item.tanggal) {
@@ -801,7 +808,7 @@ export default function StockPallet({ user }) {
       matchesYear = item.tanggal.substring(0, 4) === filterYear;
     }
     
-    return matchesSearch && matchesSize && matchesMonth && matchesYear;
+    return matchesSearch && matchesMutasiType && matchesMonth && matchesYear;
   });
 
   const sortedMutasiData = [...filteredData].sort((a, b) => {
@@ -923,7 +930,7 @@ export default function StockPallet({ user }) {
               </span>
               <input
                 type="text"
-                placeholder="Cari Customer atau Ukuran..."
+                placeholder="Cari Customer..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm font-semibold"
@@ -960,13 +967,15 @@ export default function StockPallet({ user }) {
                   <Filter className="w-4 h-4" />
                 </span>
                 <select
-                  value={selectedSize}
-                  onChange={(e) => { setSelectedSize(e.target.value); setCurrentPage(1); }}
+                  value={selectedMutasiType}
+                  onChange={(e) => { setSelectedMutasiType(e.target.value); setCurrentPage(1); }}
                   className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all text-sm appearance-none cursor-pointer font-medium"
                 >
-                  {sizes.map((s, idx) => (
-                    <option key={idx} value={s} className="bg-white text-slate-700">{s}</option>
-                  ))}
+                  <option value="Semua">Semua Mutasi</option>
+                  <option value="Subcont">Subcont</option>
+                  <option value="Lumajang">Lumajang</option>
+                  <option value="Kedatangan (Keduanya)">Kedatangan (Keduanya)</option>
+                  <option value="Keluar">Keluar</option>
                 </select>
                 <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>

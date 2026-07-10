@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
-import { Plus, Check, Play, Zap, Trash2, Edit3, X, RefreshCw, Link as LinkIcon, Loader2, Download } from 'lucide-react';
+import { Plus, Check, Play, Zap, Trash2, Edit3, X, RefreshCw, Download } from 'lucide-react';
 
 const parseCustomerItems = (customer, defaultUkuran = '1000x1200 mm', defaultQty = 0) => {
   try {
@@ -26,9 +26,7 @@ export default function KilnDry({ user }) {
   const [belumKDItems, setBelumKDItems] = useStickyState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }], 'kd_belumItems');
   const [setelahKDItems, setSetelahKDItems] = useStickyState([{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }], 'kd_setelahItems');
 
-  // Google Sheets Sync
-  const [isPushing, setIsPushing] = useState(false);
-  const [appsScriptUrl, setAppsScriptUrl] = useState(() => localStorage.getItem('appsScriptUrlKD') || '');
+
 
   // Modals state
   const [isBelumModalOpen, setIsBelumModalOpen] = useStickyState(false, 'kd_isBelumModalOpen');
@@ -61,7 +59,6 @@ export default function KilnDry({ user }) {
     ukuran: '1000x1200 mm',
     qty: 0,
     kd: 'KD 01',
-    hasil: 'Baik',
     catatan: ''
   }, 'kd_formSetelah');
 
@@ -179,7 +176,6 @@ export default function KilnDry({ user }) {
       ukuran: item.ukuran,
       qty: item.qty,
       kd: 'KD 01',
-      hasil: '12%',
       catatan: sessionDetail
     });
 
@@ -289,7 +285,6 @@ export default function KilnDry({ user }) {
       ukuran: palletTypes[0]?.ukuran || '1000x1200 mm',
       qty: 0,
       kd: 'KD 01',
-      hasil: 'Baik',
       catatan: ''
     });
     setSetelahKDItems(palletTypes.length > 0 ? [{ palletName: palletTypes[0].nama, ukuran: palletTypes[0].ukuran, qty: 0 }] : [{ palletName: '', ukuran: '1000x1200 mm', qty: 0 }]);
@@ -347,43 +342,7 @@ export default function KilnDry({ user }) {
     });
   };
 
-  // --- GOOGLE SHEETS HANDLERS ---
-  const handlePushGoogleSheet = async () => {
-    if (!appsScriptUrl) {
-      alert("URL Web App kosong. Silakan isi terlebih dahulu.");
-      return;
-    }
 
-    setIsPushing(true);
-    try {
-      const payload = {
-        action: 'pushKD',
-        dataProses: belumKD,
-        dataSetelah: setelahKD,
-        dataListrik: listrikKD
-      };
-
-      const response = await fetch(appsScriptUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await response.json();
-      if (result.status === 'success') {
-        alert("Data KD berhasil di-push ke Google Sheet!");
-      } else {
-        alert("Gagal push ke Google Sheet: " + result.message);
-      }
-    } catch (error) {
-      console.error("Error pushing to Google Sheet:", error);
-      alert("Terjadi kesalahan saat push data. Pastikan URL Web App benar dan mengizinkan akses (CORS).");
-    } finally {
-      setIsPushing(false);
-    }
-  };
 
 
 
@@ -547,38 +506,7 @@ export default function KilnDry({ user }) {
           <p className="text-slate-500 mt-1 font-medium">Pantau proses, riwayat oven pengeringan, dan log pemakaian listrik</p>
         </div>
 
-        {isAdmin && (
-          <div className="flex flex-col gap-3 w-full xl:w-auto mt-2 xl:mt-0">
-            {/* Push to Google Sheets (Export/Update) */}
-            <div className="flex flex-col sm:flex-row gap-2 items-center justify-end">
 
-
-              <div className="relative w-full sm:w-[450px] flex shadow-2xs rounded-xl overflow-hidden border border-indigo-200">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none bg-indigo-50 border-r border-indigo-100 px-3">
-                   <LinkIcon className="w-4 h-4 text-indigo-400" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Masukkan URL Google Apps Script KD..."
-                  value={appsScriptUrl}
-                  onChange={(e) => {
-                    setAppsScriptUrl(e.target.value);
-                    localStorage.setItem('appsScriptUrlKD', e.target.value);
-                  }}
-                  className="w-full pl-12 pr-4 py-2 text-sm bg-white focus:outline-none focus:bg-indigo-50/30 transition-all font-medium text-slate-700"
-                />
-                <button
-                  onClick={handlePushGoogleSheet}
-                  disabled={isPushing || !appsScriptUrl}
-                  className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-                >
-                  {isPushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Push ke Google Sheet
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Tabs Switcher */}
@@ -793,7 +721,6 @@ export default function KilnDry({ user }) {
                     <th className="py-4 px-4">Ukuran</th>
                     <th className="py-4 px-4 text-center">KD Unit</th>
                     <th className="py-4 px-4 text-center">QTY</th>
-                    <th className="py-4 px-4 text-center">Kualitas Hasil</th>
                     <th className="py-4 px-4">Catatan</th>
                     {isAdmin && <th className="py-4 px-4 text-center">Aksi</th>}
                   </tr>
@@ -801,7 +728,7 @@ export default function KilnDry({ user }) {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {setelahKD.length === 0 ? (
                     <tr>
-                      <td colSpan={isAdmin ? 8 : 7} className="py-10 text-center text-slate-400 font-medium">Belum ada riwayat proses kiln dry.</td>
+                      <td colSpan={isAdmin ? 7 : 6} className="py-10 text-center text-slate-400 font-medium">Belum ada riwayat proses kiln dry.</td>
                     </tr>
                   ) : (
                     setelahKD.map(item => (
@@ -842,21 +769,6 @@ export default function KilnDry({ user }) {
                              </div>
                            </div>
                          </td>
-                        <td className="py-4 px-4 text-center">
-                          {(() => {
-                            const mcNum = parseFloat(item.hasil);
-                            const isGood = !isNaN(mcNum) ? mcNum < 15 : (item.hasil?.toLowerCase().includes('baik') || false);
-                            return (
-                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                                isGood 
-                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
-                                  : 'bg-rose-50 text-rose-600 border border-rose-100'
-                              }`}>
-                                {item.hasil}
-                              </span>
-                            );
-                          })()}
-                        </td>
                         <td className="py-4 px-4 text-slate-500 text-xs max-w-xs truncate">{item.catatan || '-'}</td>
                         {isAdmin && (
                           <td className="py-4 px-4">
@@ -1380,29 +1292,16 @@ export default function KilnDry({ user }) {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">KD Unit</label>
-                  <select
-                    value={formSetelah.kd}
-                    onChange={(e) => setFormSetelah({ ...formSetelah, kd: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-xs font-semibold cursor-pointer"
-                  >
-                    <option value="KD 01">KD 01</option>
-                    <option value="KD 02">KD 02</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Hasil Kualitas (MC)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: 12% atau Baik"
-                    value={formSetelah.hasil}
-                    onChange={(e) => setFormSetelah({ ...formSetelah, hasil: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
-                  />
-                </div>
+              <div>
+                <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">KD Unit</label>
+                <select
+                  value={formSetelah.kd}
+                  onChange={(e) => setFormSetelah({ ...formSetelah, kd: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-xs font-semibold cursor-pointer"
+                >
+                  <option value="KD 01">KD 01</option>
+                  <option value="KD 02">KD 02</option>
+                </select>
               </div>
               <div>
                 <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Catatan</label>
