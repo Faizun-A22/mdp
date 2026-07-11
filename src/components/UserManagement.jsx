@@ -72,7 +72,7 @@ export default function UserManagement() {
     if (window.confirm('Apakah Anda yakin ingin menghapus akun user ini?')) {
       const updated = users.filter(u => u.id !== id);
       setUsers(updated);
-      await storageAPI.saveUsers(updated);
+      await storageAPI.deleteUser(id);
     }
   };
 

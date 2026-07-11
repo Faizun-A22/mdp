@@ -133,8 +133,7 @@ export default function Materials({ user }) {
       setMaterials(updated);
       setMaterialLogs(updatedLogs);
       
-      await storageAPI.saveMaterials(updated);
-      await storageAPI.saveMaterialLogs(updatedLogs);
+      await storageAPI.deleteMaterial(id);
     }
   };
 
@@ -161,8 +160,8 @@ export default function Materials({ user }) {
     setMaterials(updatedMaterials);
     setMaterialLogs(updatedLogs);
     
+    await storageAPI.deleteMaterialLog(logId);
     await storageAPI.saveMaterials(updatedMaterials);
-    await storageAPI.saveMaterialLogs(updatedLogs);
   };
 
   const openAdjustModal = (item) => {

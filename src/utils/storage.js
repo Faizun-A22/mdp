@@ -508,23 +508,6 @@ const recalculatePOsWithMutasi = (pos, mutasiList, dels = []) => {
 // --- GENERIC SYNC TABLE HELPER ---
 const syncTable = async (tableName, frontendData, mapToDbRow, silent = false) => {
   try {
-    const { data: dbData, error: fetchErr } = await supabase.from(tableName).select('id');
-    if (fetchErr) throw fetchErr;
-
-    const dbIds = dbData ? dbData.map(d => d.id) : [];
-    const frontendIds = frontendData.map(d => d.id);
-    const toDelete = dbIds.filter(id => !frontendIds.includes(id));
-    
-    if (toDelete.length > 0) {
-      // Chunk DELETE into batches of 100 to prevent URL length limits (400 Bad Request)
-      const DELETE_CHUNK_SIZE = 100;
-      for (let i = 0; i < toDelete.length; i += DELETE_CHUNK_SIZE) {
-        const chunk = toDelete.slice(i, i + DELETE_CHUNK_SIZE);
-        const { error: delErr } = await supabase.from(tableName).delete().in('id', chunk);
-        if (delErr) throw delErr;
-      }
-    }
-    
     if (frontendData.length > 0) {
       const dbRows = frontendData.map(mapToDbRow);
       // Chunk UPSERT into batches of 500 rows to prevent Payload Too Large / Bad Request
@@ -577,19 +560,6 @@ const syncPalletTypes = async (frontendData) => {
         keterangan: pt.keterangan || ''
       };
     });
-
-    // Delete rows in DB that are no longer in frontend list (chunked to prevent limits)
-    const frontendIds = rows.map(r => r.id);
-    const dbIds = dbData ? dbData.map(d => d.id) : [];
-    const toDelete = dbIds.filter(id => !frontendIds.includes(id));
-    if (toDelete.length > 0) {
-      const DELETE_CHUNK_SIZE = 100;
-      for (let i = 0; i < toDelete.length; i += DELETE_CHUNK_SIZE) {
-        const chunk = toDelete.slice(i, i + DELETE_CHUNK_SIZE);
-        const { error: delErr } = await supabase.from('mdp_pallet_types').delete().in('id', chunk);
-        if (delErr) throw delErr;
-      }
-    }
 
     // Upsert using id as the conflict target (chunked to prevent limits)
     if (rows.length > 0) {
@@ -911,7 +881,10 @@ export const storageAPI = {
     return getFromStorage(KEYS.PO_DELIVERIES, []);
   },
   saveDeliveries: async (data) => {
+    // 1. Get old deliveries to detect changes
+    const oldDels = getFromStorage(KEYS.PO_DELIVERIES, []);
     saveToStorage(KEYS.PO_DELIVERIES, data);
+    
     if (supabase) {
       try {
         // 1. Fetch all valid PO ids from DB
@@ -927,6 +900,263 @@ export const storageAPI = {
         await syncTable('mdp_po_deliveries', validDeliveries, mapDeliveryToDb);
       } catch (error) {
         console.error('Gagal melakukan sinkronisasi tabel mdp_po_deliveries ke Supabase:', error);
+      }
+    }
+
+    // 2. Detect if any delivery was updated, and update corresponding stock pallet mutation
+    try {
+      for (const newDel of data) {
+        const oldDel = oldDels.find(d => d.id === newDel.id);
+        if (oldDel && (oldDel.noReff !== newDel.noReff || oldDel.qtyKirim !== newDel.qtyKirim || oldDel.tanggalKirim !== newDel.tanggalKirim)) {
+          // Delivery was modified! Update stock pallet
+          const localStock = getFromStorage(KEYS.STOCK_PALLET, MOCK_STOCK_PALLET);
+          let updatedStock = localStock.map(item => {
+            if (item.subcontNama === oldDel.noReff) {
+              return {
+                ...item,
+                tanggal: newDel.tanggalKirim,
+                subcontNama: newDel.noReff,
+                palletKeluar: Math.abs(newDel.qtyKirim)
+              };
+            }
+            return item;
+          });
+          saveToStorage(KEYS.STOCK_PALLET, updatedStock);
+          
+          if (supabase) {
+            try {
+              // Fetch the existing stock pallet row id
+              const { data: stockRows } = await supabase
+                .from('mdp_stock_pallet')
+                .select('id')
+                .eq('subcont_nama', oldDel.noReff);
+                
+              if (stockRows && stockRows.length > 0) {
+                const stockId = stockRows[0].id;
+                await supabase.from('mdp_stock_pallet').update({
+                  tanggal: newDel.tanggalKirim,
+                  subcont_nama: newDel.noReff,
+                  pallet_keluar: Math.abs(newDel.qtyKirim)
+                }).eq('id', stockId);
+              }
+            } catch (e) {
+              console.error('Failed to update matching stock pallet on Supabase:', e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to sync delivery modifications to stock pallets:', e);
+    }
+  },
+
+  deleteUser: async (id) => {
+    const local = getFromStorage(KEYS.USERS, MOCK_USERS);
+    const updated = local.filter(u => u.id !== id);
+    saveToStorage(KEYS.USERS, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_users').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete user from Supabase:', e);
+      }
+    }
+  },
+
+  deletePalletType: async (id) => {
+    const local = getFromStorage(KEYS.PALLET_TYPES, MOCK_PALLET_TYPES);
+    const updated = local.filter(pt => pt.id !== id);
+    saveToStorage(KEYS.PALLET_TYPES, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_pallet_types').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete pallet type from Supabase:', e);
+      }
+    }
+  },
+
+  deleteStockPallet: async (id) => {
+    const local = getFromStorage(KEYS.STOCK_PALLET, MOCK_STOCK_PALLET);
+    const updated = local.filter(item => item.id !== id);
+    saveToStorage(KEYS.STOCK_PALLET, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_stock_pallet').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete stock pallet from Supabase:', e);
+      }
+    }
+
+    // Auto recalculate Outstanding POs (since mutasi history changed)
+    try {
+      const pos = await storageAPI.getOutstandingPOs();
+      const dels = await storageAPI.getDeliveries();
+      const updatedPOs = recalculatePOsWithMutasi(pos, updated, dels);
+      saveToStorage(KEYS.OUTSTANDING_PO, updatedPOs);
+      if (supabase) {
+        try {
+          await syncTable('mdp_outstanding_po', updatedPOs, mapOSToDb);
+        } catch (e) {
+          console.error("Gagal sinkronisasi otomatis Outstanding PO ke Supabase:", e);
+        }
+      }
+    } catch (e) {
+      console.error("Gagal sinkronisasi otomatis Outstanding PO dari Mutasi:", e);
+    }
+  },
+
+  deleteKDBelum: async (id) => {
+    const local = getFromStorage(KEYS.KILN_DRY_BELUM, MOCK_KD_BELUM);
+    const updated = local.filter(item => item.id !== id);
+    saveToStorage(KEYS.KILN_DRY_BELUM, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_kd_belum').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete KD Belum from Supabase:', e);
+      }
+    }
+  },
+
+  deleteKDSetelah: async (id) => {
+    const local = getFromStorage(KEYS.KILN_DRY_SETELAH, MOCK_KD_SETELAH);
+    const updated = local.filter(item => item.id !== id);
+    saveToStorage(KEYS.KILN_DRY_SETELAH, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_kd_setelah').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete KD Setelah from Supabase:', e);
+      }
+    }
+  },
+
+  deleteKDListrik: async (id) => {
+    const local = getFromStorage(KEYS.KILN_DRY_LISTRIK, MOCK_KD_LISTRIK);
+    const updated = local.filter(item => item.id !== id);
+    saveToStorage(KEYS.KILN_DRY_LISTRIK, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_kd_listrik').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete KD Listrik from Supabase:', e);
+      }
+    }
+  },
+
+  deleteMaterial: async (id) => {
+    const local = getFromStorage(KEYS.MATERIALS, MOCK_MATERIALS);
+    const updated = local.filter(m => m.id !== id);
+    saveToStorage(KEYS.MATERIALS, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_materials').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete material from Supabase:', e);
+      }
+    }
+
+    // Cascade delete material logs
+    const localLogs = getFromStorage(KEYS.MATERIAL_LOGS, MOCK_MATERIAL_LOGS);
+    const updatedLogs = localLogs.filter(log => log.materialId !== id);
+    saveToStorage(KEYS.MATERIAL_LOGS, updatedLogs);
+    if (supabase) {
+      try {
+        await supabase.from('mdp_material_logs').delete().eq('material_id', id);
+      } catch (e) {
+        console.error('Failed to cascade delete material logs from Supabase:', e);
+      }
+    }
+  },
+
+  deleteMaterialLog: async (id) => {
+    const local = getFromStorage(KEYS.MATERIAL_LOGS, MOCK_MATERIAL_LOGS);
+    const updated = local.filter(log => log.id !== id);
+    saveToStorage(KEYS.MATERIAL_LOGS, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_material_logs').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete material log from Supabase:', e);
+      }
+    }
+  },
+
+  deleteRepair: async (id) => {
+    const local = getFromStorage(KEYS.REPAIRS, MOCK_REPAIRS);
+    const updated = local.filter(r => r.id !== id);
+    saveToStorage(KEYS.REPAIRS, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_repairs').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete repair log from Supabase:', e);
+      }
+    }
+  },
+
+  deleteOutstandingPO: async (id) => {
+    const local = getFromStorage(KEYS.OUTSTANDING_PO, MOCK_OUTSTANDING_PO);
+    const updated = local.filter(po => po.id !== id);
+    saveToStorage(KEYS.OUTSTANDING_PO, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_outstanding_po').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete outstanding PO from Supabase:', e);
+      }
+    }
+
+    // Cascade delete PO deliveries
+    const localDels = getFromStorage(KEYS.PO_DELIVERIES, []);
+    const updatedDels = localDels.filter(del => del.poId !== id);
+    saveToStorage(KEYS.PO_DELIVERIES, updatedDels);
+    if (supabase) {
+      try {
+        await supabase.from('mdp_po_deliveries').delete().eq('po_id', id);
+      } catch (e) {
+        console.error('Failed to cascade delete PO deliveries from Supabase:', e);
+      }
+    }
+  },
+
+  deleteDelivery: async (id) => {
+    const local = getFromStorage(KEYS.PO_DELIVERIES, []);
+    const delToDelete = local.find(d => d.id === id);
+    const updated = local.filter(del => del.id !== id);
+    saveToStorage(KEYS.PO_DELIVERIES, updated);
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('mdp_po_deliveries').delete().eq('id', id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Failed to delete PO delivery from Supabase:', e);
+      }
+    }
+
+    // Cascade delete matching stock pallet mutation to keep them in sync
+    if (delToDelete && delToDelete.noReff) {
+      const localStock = getFromStorage(KEYS.STOCK_PALLET, MOCK_STOCK_PALLET);
+      const updatedStock = localStock.filter(item => item.subcontNama !== delToDelete.noReff);
+      saveToStorage(KEYS.STOCK_PALLET, updatedStock);
+      
+      if (supabase) {
+        try {
+          await supabase.from('mdp_stock_pallet').delete().eq('subcont_nama', delToDelete.noReff);
+        } catch (e) {
+          console.error('Failed to delete matching stock pallet mutation from Supabase:', e);
+        }
       }
     }
   }

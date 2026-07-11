@@ -188,7 +188,7 @@ export default function KilnDry({ user }) {
     if (window.confirm('Hapus antrean KD ini?')) {
       const updated = belumKD.filter(i => i.id !== id);
       setBelumKD(updated);
-      await storageAPI.saveKDBelum(updated);
+      await storageAPI.deleteKDBelum(id);
     }
   };
 
@@ -252,7 +252,7 @@ export default function KilnDry({ user }) {
     if (completingQueueItem) {
       const updatedBelum = belumKD.filter(i => i.id !== completingQueueItem.id);
       setBelumKD(updatedBelum);
-      await storageAPI.saveKDBelum(updatedBelum);
+      await storageAPI.deleteKDBelum(completingQueueItem.id);
       setCompletingQueueItem(null);
     }
 
@@ -263,7 +263,7 @@ export default function KilnDry({ user }) {
     if (window.confirm('Hapus riwayat KD ini?')) {
       const updated = setelahKD.filter(i => i.id !== id);
       setSetelahKD(updated);
-      await storageAPI.saveKDSetelah(updated);
+      await storageAPI.deleteKDSetelah(id);
     }
   };
 
@@ -315,7 +315,7 @@ export default function KilnDry({ user }) {
     if (window.confirm('Hapus log pemakaian listrik ini?')) {
       const updated = listrikKD.filter(i => i.id !== id);
       setListrikKD(updated);
-      await storageAPI.saveKDListrik(updated);
+      await storageAPI.deleteKDListrik(id);
     }
   };
 

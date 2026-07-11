@@ -458,11 +458,11 @@ export default function Outstanding({ user }) {
     if (!window.confirm("Apakah Anda yakin ingin menghapus PO ini?")) return;
     const updated = data.filter(item => item.id !== id);
     setData(updated);
-    await storageAPI.saveOutstandingPOs(updated);
-
+    
     const updatedDeliveries = deliveries.filter(d => d.poId !== id);
     setDeliveries(updatedDeliveries);
-    await storageAPI.saveDeliveries(updatedDeliveries);
+    
+    await storageAPI.deleteOutstandingPO(id);
   };
 
 
@@ -473,7 +473,7 @@ export default function Outstanding({ user }) {
     // 1. Filter out the deleted delivery
     const updatedDeliveries = deliveries.filter(d => d.id !== deliveryId);
     setDeliveries(updatedDeliveries);
-    await storageAPI.saveDeliveries(updatedDeliveries);
+    await storageAPI.deleteDelivery(deliveryId);
 
     // 2. Recalculate parent PO metrics
     const poDels = updatedDeliveries.filter(d => d.poId === poId);
@@ -1185,7 +1185,10 @@ export default function Outstanding({ user }) {
                             <button
                               onClick={() => {
                                 setKirimanItem(item);
-                                setNewNoReffVal(item.noReff || '');
+                                const rawReff = item.noReff || '';
+                                const slashIndex = rawReff.indexOf('/');
+                                const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                                setNewNoReffVal(baseReff);
                                 setNewKirimanVal(0);
                                 setIsKirimanModalOpen(true);
                               }}
@@ -1198,7 +1201,10 @@ export default function Outstanding({ user }) {
                             <button
                               onClick={() => {
                                 setReturItem(item);
-                                setNewNoReffVal(item.noReff || '');
+                                const rawReff = item.noReff || '';
+                                const slashIndex = rawReff.indexOf('/');
+                                const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                                setNewNoReffVal(baseReff);
                                 setNewReturVal(0);
                                 setIsReturModalOpen(true);
                               }}

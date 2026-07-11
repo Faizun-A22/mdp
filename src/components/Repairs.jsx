@@ -145,7 +145,7 @@ export default function Repairs({ user }) {
     if (window.confirm('Apakah Anda yakin ingin menghapus log perbaikan warehouse ini?')) {
       const updated = repairs.filter(item => item.id !== id);
       setRepairs(updated);
-      await storageAPI.saveRepairs(updated);
+      await storageAPI.deleteRepair(id);
     }
   };
 

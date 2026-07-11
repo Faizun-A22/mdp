@@ -751,7 +751,10 @@ export default function StockPallet({ user }) {
       }
     }
 
-    const fullReff = (selectedPo.noReff || '') + reffSuffix.trim();
+    const rawReff = selectedPo.noReff || '';
+    const slashIndex = rawReff.indexOf('/');
+    const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+    const fullReff = baseReff + reffSuffix.trim();
 
     // 1. Simpan pengiriman baru ke PO Deliveries
     const newDelivery = {
@@ -834,7 +837,7 @@ export default function StockPallet({ user }) {
       let updatedData = data.filter(item => item.id !== id);
       updatedData = recalculateStockHistory(updatedData);
       setData(updatedData);
-      await storageAPI.saveStockPallets(updatedData);
+      await storageAPI.deleteStockPallet(id);
     }
   };
 
@@ -899,7 +902,7 @@ export default function StockPallet({ user }) {
     if (window.confirm('Apakah Anda yakin ingin menghapus jenis pallet ini? Pilihan ini mungkin memengaruhi data mutasi yang menggunakannya.')) {
       const updated = palletTypes.filter(pt => pt.id !== id);
       setPalletTypes(updated);
-      await storageAPI.savePalletTypes(updated);
+      await storageAPI.deletePalletType(id);
     }
   };
 
@@ -2706,12 +2709,15 @@ export default function StockPallet({ user }) {
                     onChange={(e) => {
                       const val = e.target.value;
                       setReffInput(val);
-                      // Try to auto-resolve matching PO if typed exactly
-                      const matched = outstandingPOs.find(po => 
-                        po.batchId === sjFormData.palletType && 
-                        po.sisaPo > 0 && 
-                        (po.noReff || '').toLowerCase() === val.toLowerCase().trim()
-                      );
+                      // Try to auto-resolve matching PO if typed exactly (using base reference)
+                      const matched = outstandingPOs.find(po => {
+                        const rawReff = po.noReff || '';
+                        const slashIndex = rawReff.indexOf('/');
+                        const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                        return po.batchId === sjFormData.palletType && 
+                               po.sisaPo > 0 && 
+                               baseReff.toLowerCase().trim() === val.toLowerCase().trim();
+                      });
                       setSjFormData(prev => ({
                         ...prev,
                         poId: matched ? matched.id : ''
@@ -2725,17 +2731,20 @@ export default function StockPallet({ user }) {
                       setTimeout(() => setShowReffSuggestions(false), 200);
                     }}
                     placeholder={sjFormData.palletType ? "Ketik nomor Reff atau pilih dari rekomendasi..." : "Pilih Jenis Pallet terlebih dahulu..."}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-850 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-855 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                     autoComplete="off"
                   />
                   {showReffSuggestions && sjFormData.palletType && (
                     <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-[999]">
                       {(() => {
-                        const filtered = outstandingPOs.filter(po => 
-                          po.batchId === sjFormData.palletType && 
-                          po.sisaPo > 0 &&
-                          (po.noReff || '').toLowerCase().includes(reffInput.toLowerCase())
-                        );
+                        const filtered = outstandingPOs.filter(po => {
+                          const rawReff = po.noReff || '';
+                          const slashIndex = rawReff.indexOf('/');
+                          const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                          return po.batchId === sjFormData.palletType && 
+                                 po.sisaPo > 0 &&
+                                 baseReff.toLowerCase().includes(reffInput.toLowerCase());
+                        });
                         if (filtered.length === 0) {
                           return (
                             <div className="px-4 py-3 text-slate-400 text-xs text-center font-medium">
@@ -2743,22 +2752,27 @@ export default function StockPallet({ user }) {
                             </div>
                           );
                         }
-                        return filtered.map(po => (
-                          <button
-                            key={po.id}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              setReffInput(po.noReff || '');
-                              setSjFormData(prev => ({ ...prev, poId: po.id }));
-                              setShowReffSuggestions(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 text-slate-700 hover:text-slate-900 font-semibold transition-all border-b border-slate-100 last:border-none cursor-pointer flex justify-between items-center"
-                          >
-                            <span>{po.noReff || '(Tanpa Reff)'}</span>
-                            <span className="text-xs text-slate-400 font-medium">PO: {po.nomorPo} - {po.customer}</span>
-                          </button>
-                        ));
+                        return filtered.map(po => {
+                          const rawReff = po.noReff || '';
+                          const slashIndex = rawReff.indexOf('/');
+                          const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                          return (
+                            <button
+                              key={po.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setReffInput(baseReff);
+                                setSjFormData(prev => ({ ...prev, poId: po.id }));
+                                setShowReffSuggestions(false);
+                              }}
+                              className="w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 text-slate-700 hover:text-slate-900 font-semibold transition-all border-b border-slate-100 last:border-none cursor-pointer flex justify-between items-center"
+                            >
+                              <span>{baseReff || '(Tanpa Reff)'}</span>
+                              <span className="text-xs text-slate-400 font-medium">PO: {po.nomorPo} - {po.customer}</span>
+                            </button>
+                          );
+                        });
                       })()}
                     </div>
                   )}
