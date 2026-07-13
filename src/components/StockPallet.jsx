@@ -2714,9 +2714,12 @@ export default function StockPallet({ user }) {
                         const rawReff = po.noReff || '';
                         const slashIndex = rawReff.indexOf('/');
                         const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                        return po.batchId === sjFormData.palletType && 
-                               po.sisaPo > 0 && 
-                               baseReff.toLowerCase().trim() === val.toLowerCase().trim();
+                        const isMatchingPallet = po.batchId === sjFormData.palletType || po.ukuran === sjFormData.ukuran;
+                        const searchLower = val.toLowerCase().trim();
+                        const matchesSearch = baseReff.toLowerCase().trim() === searchLower ||
+                                              po.nomorPo.toLowerCase().trim() === searchLower ||
+                                              po.customer.toLowerCase().trim() === searchLower;
+                        return isMatchingPallet && po.sisaPo > 0 && matchesSearch;
                       });
                       setSjFormData(prev => ({
                         ...prev,
@@ -2730,7 +2733,7 @@ export default function StockPallet({ user }) {
                     onBlur={() => {
                       setTimeout(() => setShowReffSuggestions(false), 200);
                     }}
-                    placeholder={sjFormData.palletType ? "Ketik nomor Reff atau pilih dari rekomendasi..." : "Pilih Jenis Pallet terlebih dahulu..."}
+                    placeholder={sjFormData.palletType ? "Ketik nomor Reff, PO, atau Customer..." : "Pilih Jenis Pallet terlebih dahulu..."}
                     className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-855 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                     autoComplete="off"
                   />
@@ -2741,9 +2744,12 @@ export default function StockPallet({ user }) {
                           const rawReff = po.noReff || '';
                           const slashIndex = rawReff.indexOf('/');
                           const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                          return po.batchId === sjFormData.palletType && 
-                                 po.sisaPo > 0 &&
-                                 baseReff.toLowerCase().includes(reffInput.toLowerCase());
+                          const isMatchingPallet = po.batchId === sjFormData.palletType || po.ukuran === sjFormData.ukuran;
+                          const searchLower = reffInput.toLowerCase();
+                          const matchesSearch = baseReff.toLowerCase().includes(searchLower) ||
+                                                po.nomorPo.toLowerCase().includes(searchLower) ||
+                                                po.customer.toLowerCase().includes(searchLower);
+                          return isMatchingPallet && po.sisaPo > 0 && matchesSearch;
                         });
                         if (filtered.length === 0) {
                           return (
