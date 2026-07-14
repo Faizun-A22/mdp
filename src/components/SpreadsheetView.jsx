@@ -32,6 +32,9 @@ export default function SpreadsheetView({ user }) {
   
   // Matrix data state specifically for stock_pallet
   const [matrixData, setMatrixData] = useState([]);
+  
+  // Track which cell is active for click-to-edit (prevents input rendering lag)
+  const [activeCell, setActiveCell] = useState(null); // { groupIndex, rowType, day }
 
   // Constants metadata for tables (used for Po and Materials, and definitions)
   const tablesMeta = {
@@ -111,13 +114,27 @@ export default function SpreadsheetView({ user }) {
     { value: 12, label: 'Desember' }
   ];
 
-  // Number of days in selected month
+  // Number of days in selected month with fallbacks to prevent RangeError
   const daysInMonth = useMemo(() => {
-    return new Date(selectedYear, selectedMonth, 0).getDate();
+    const month = selectedMonth || 6;
+    const year = selectedYear || 2026;
+    return new Date(year, month, 0).getDate();
   }, [selectedMonth, selectedYear]);
 
+  // Safe date parser to prevent splitting errors if date is undefined/null
+  const parseDateParts = (dateStr) => {
+    if (!dateStr || typeof dateStr !== 'string') return { year: 0, month: 0, day: 0 };
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return { year: 0, month: 0, day: 0 };
+    return {
+      year: parseInt(parts[0], 10) || 0,
+      month: parseInt(parts[1], 10) || 0,
+      day: parseInt(parts[2], 10) || 0
+    };
+  };
+
   // Transform flat database rows to monthly matrix grid
-  const initializeMatrix = (flatData, types, month, year) => {
+  const initializeMatrix = (flatData = [], types = [], month = 6, year = 2026) => {
     const days = new Date(year, month, 0).getDate();
     
     // Collect all customer + size combinations
@@ -126,7 +143,7 @@ export default function SpreadsheetView({ user }) {
     
     // 1. From palletTypes
     types.forEach(pt => {
-      const key = `${pt.nama}_${pt.ukuran}`;
+      const key = `${pt.nama || ''}_${pt.ukuran || ''}`;
       if (!seen.has(key)) {
         seen.add(key);
         customerKeys.push({ customer: pt.nama, ukuran: pt.ukuran });
@@ -135,7 +152,7 @@ export default function SpreadsheetView({ user }) {
     
     // 2. From flatData (in case there are other customers not registered in master)
     flatData.forEach(item => {
-      const key = `${item.customer}_${item.ukuran}`;
+      const key = `${item.customer || ''}_${item.ukuran || ''}`;
       if (!seen.has(key)) {
         seen.add(key);
         customerKeys.push({ customer: item.customer, ukuran: item.ukuran });
@@ -158,19 +175,14 @@ export default function SpreadsheetView({ user }) {
       // Filter database rows for this customer, size, and selected month/year
       const filtered = flatData.filter(item => {
         if (item.customer !== ck.customer || item.ukuran !== ck.ukuran) return false;
-        
-        // Padded date format match in case date parsing behaves differently
-        const parts = item.tanggal.split('-');
-        const parsedYear = parseInt(parts[0], 10);
-        const parsedMonth = parseInt(parts[1], 10);
-        
-        return parsedMonth === month && parsedYear === year;
+        const dateParts = parseDateParts(item.tanggal);
+        return dateParts.month === month && dateParts.year === year;
       });
 
       // Populate daily values
       filtered.forEach(item => {
-        const parts = item.tanggal.split('-');
-        const day = parseInt(parts[2], 10);
+        const dateParts = parseDateParts(item.tanggal);
+        const day = dateParts.day;
         if (day >= 1 && day <= days) {
           group.M[day] = Number(item.produksi || 0) + Number(item.dariLumajang || 0) + Number(item.dariSubcont || 0);
           group.K[day] = Number(item.palletKeluar || 0);
@@ -186,18 +198,20 @@ export default function SpreadsheetView({ user }) {
       // If Day 1 Stock Awal is 0, lookup the last ending balance from previous months
       const recordsBeforeMonth = flatData.filter(item => {
         if (item.customer !== ck.customer || item.ukuran !== ck.ukuran) return false;
-        const parts = item.tanggal.split('-');
-        const parsedYear = parseInt(parts[0], 10);
-        const parsedMonth = parseInt(parts[1], 10);
+        const dateParts = parseDateParts(item.tanggal);
         
-        if (parsedYear < year) return true;
-        if (parsedYear === year && parsedMonth < month) return true;
+        if (dateParts.year < year) return true;
+        if (dateParts.year === year && dateParts.month < month) return true;
         return false;
       });
 
       if (group.A[1] === 0 && recordsBeforeMonth.length > 0) {
         // Sort descending to get most recent sisa
-        recordsBeforeMonth.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+        recordsBeforeMonth.sort((a, b) => {
+          const dateA = a.tanggal ? new Date(a.tanggal) : new Date(0);
+          const dateB = b.tanggal ? new Date(b.tanggal) : new Date(0);
+          return dateB - dateA;
+        });
         const lastRecord = recordsBeforeMonth[0];
         const lastSisa = Number(lastRecord.stockAwal || 0) + 
                           Number(lastRecord.produksi || 0) + 
@@ -222,23 +236,30 @@ export default function SpreadsheetView({ user }) {
     return matrix;
   };
 
-  // Load configuration and data
+  // Load data from Supabase/LocalStorage
   const loadData = async (targetTable) => {
     setIsLoading(true);
     try {
-      const types = await storageAPI.getPalletTypes();
+      const types = await storageAPI.getPalletTypes() || [];
       setPalletTypes(types);
 
       let data = [];
       if (targetTable === 'stock_pallet') {
-        data = await storageAPI.getStockPallets();
-        // Sort descending by date
-        data.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+        data = await storageAPI.getStockPallets() || [];
+        data.sort((a, b) => {
+          const dateA = a.tanggal ? new Date(a.tanggal) : new Date(0);
+          const dateB = b.tanggal ? new Date(b.tanggal) : new Date(0);
+          return dateB - dateA;
+        });
       } else if (targetTable === 'outstanding_po') {
-        data = await storageAPI.getOutstandingPOs();
-        data.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+        data = await storageAPI.getOutstandingPOs() || [];
+        data.sort((a, b) => {
+          const dateA = a.tanggal ? new Date(a.tanggal) : new Date(0);
+          const dateB = b.tanggal ? new Date(b.tanggal) : new Date(0);
+          return dateB - dateA;
+        });
       } else if (targetTable === 'materials') {
-        data = await storageAPI.getMaterials();
+        data = await storageAPI.getMaterials() || [];
         data.sort((a, b) => (a.kode || '').localeCompare(b.kode || ''));
       }
       setGridData(data);
@@ -272,7 +293,7 @@ export default function SpreadsheetView({ user }) {
   const recalculateStockHistory = (allData) => {
     const groups = {};
     allData.forEach(item => {
-      const key = `${item.customer}_${item.ukuran}`;
+      const key = `${item.customer || ''}_${item.ukuran || ''}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push({ ...item });
     });
@@ -280,10 +301,9 @@ export default function SpreadsheetView({ user }) {
     const updatedData = [];
 
     for (const key in groups) {
-      // Sort ascending chronologically for stock calculation
       const group = groups[key].sort((a, b) => {
-        const dateA = new Date(a.tanggal);
-        const dateB = new Date(b.tanggal);
+        const dateA = a.tanggal ? new Date(a.tanggal) : new Date(0);
+        const dateB = b.tanggal ? new Date(b.tanggal) : new Date(0);
         if (dateA - dateB !== 0) return dateA - dateB;
         const timeA = a.createdAt || a.id || '';
         const timeB = b.createdAt || b.id || '';
@@ -310,10 +330,9 @@ export default function SpreadsheetView({ user }) {
       });
     }
 
-    // Sort descending for display in table
     return updatedData.sort((a, b) => {
-      const dateA = new Date(a.tanggal);
-      const dateB = new Date(b.tanggal);
+      const dateA = a.tanggal ? new Date(a.tanggal) : new Date(0);
+      const dateB = b.tanggal ? new Date(b.tanggal) : new Date(0);
       if (dateA - dateB !== 0) return dateB - dateA;
       const timeA = a.createdAt || a.id || '';
       const timeB = b.createdAt || b.id || '';
@@ -454,12 +473,10 @@ export default function SpreadsheetView({ user }) {
     setIsSaving(true);
     try {
       if (activeTable === 'stock_pallet') {
-        // Filter out current month's rows from the main array
+        // Filter out current month's rows from the main array safely
         const otherMonthsData = gridData.filter(item => {
-          const parts = item.tanggal.split('-');
-          const parsedYear = parseInt(parts[0], 10);
-          const parsedMonth = parseInt(parts[1], 10);
-          return !(parsedMonth === selectedMonth && parsedYear === selectedYear);
+          const dateParts = parseDateParts(item.tanggal);
+          return !(dateParts.month === selectedMonth && dateParts.year === selectedYear);
         });
 
         // Flatten current month's matrix data
@@ -530,8 +547,8 @@ export default function SpreadsheetView({ user }) {
     
     return matrixData.filter(group => {
       return (
-        group.customer.toLowerCase().includes(q) ||
-        group.ukuran.toLowerCase().includes(q)
+        (group.customer || '').toLowerCase().includes(q) ||
+        (group.ukuran || '').toLowerCase().includes(q)
       );
     });
   }, [matrixData, searchQuery]);
@@ -731,6 +748,60 @@ export default function SpreadsheetView({ user }) {
     reader.readAsBinaryString(file);
   };
 
+  // Helper component to render matrix cell with click-to-edit to eliminate lag
+  const renderMatrixCell = (groupIndex, rowType, day, val, isEditable = true) => {
+    const isEditing = isEditable && 
+                      activeCell && 
+                      activeCell.groupIndex === groupIndex && 
+                      activeCell.rowType === rowType && 
+                      activeCell.day === day;
+
+    if (isEditing) {
+      return (
+        <td key={day} className="p-0 border-r border-slate-200 text-center ring-2 ring-indigo-500 bg-white z-10 min-w-[48px]">
+          <input
+            type="number"
+            defaultValue={val === 0 ? '' : val}
+            autoFocus
+            onBlur={(e) => {
+              handleMatrixCellChange(groupIndex, rowType, day, e.target.value);
+              setActiveCell(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleMatrixCellChange(groupIndex, rowType, day, e.target.value);
+                setActiveCell(null);
+              } else if (e.key === 'Escape') {
+                setActiveCell(null);
+              }
+            }}
+            className="w-12 h-8 text-center text-xs font-bold border-none focus:outline-none text-slate-800 p-0"
+            style={{ MozAppearance: 'textfield', WebkitAppearance: 'none', margin: 0 }}
+          />
+        </td>
+      );
+    }
+
+    let textClass = 'text-slate-500';
+    if (rowType === 'M') textClass = 'text-emerald-650 font-bold';
+    else if (rowType === 'K') textClass = 'text-rose-650 font-bold';
+    else if (rowType === 'RCust') textClass = 'text-indigo-600';
+    else if (rowType === 'RWS') textClass = 'text-amber-600';
+    else if (rowType === 'S') textClass = 'text-slate-800 font-bold';
+
+    return (
+      <td 
+        key={day}
+        onClick={isEditable ? () => setActiveCell({ groupIndex, rowType, day }) : undefined}
+        className={`h-8 border-r border-slate-200 text-center text-xs select-none transition-colors min-w-[48px] ${
+          isEditable ? 'cursor-pointer hover:bg-indigo-50/50' : 'bg-slate-50/60 font-semibold'
+        } ${textClass}`}
+      >
+        {val === 0 ? '-' : val}
+      </td>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Top Controller Bar */}
@@ -759,6 +830,7 @@ export default function SpreadsheetView({ user }) {
                 onChange={(e) => {
                   setActiveTable(e.target.value);
                   setSearchQuery('');
+                  setActiveCell(null);
                 }}
                 className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm focus:outline-none focus:border-indigo-500 cursor-pointer transition-all"
               >
@@ -773,7 +845,10 @@ export default function SpreadsheetView({ user }) {
               <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
                 <select
                   value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  onChange={(e) => {
+                    setSelectedMonth(Number(e.target.value));
+                    setActiveCell(null);
+                  }}
                   className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm focus:outline-none focus:border-indigo-500 cursor-pointer transition-all"
                 >
                   {monthsList.map(m => (
@@ -782,7 +857,10 @@ export default function SpreadsheetView({ user }) {
                 </select>
                 <select
                   value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  onChange={(e) => {
+                    setSelectedYear(Number(e.target.value));
+                    setActiveCell(null);
+                  }}
                   className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm focus:outline-none focus:border-indigo-500 cursor-pointer transition-all"
                 >
                   {[2025, 2026, 2027, 2028].map(y => (
@@ -938,7 +1016,7 @@ export default function SpreadsheetView({ user }) {
                     const finalStock = group.S[daysInMonth];
 
                     return (
-                      <React.Fragment key={`${group.customer}_${group.ukuran}_${groupIndex}`}>
+                      <React.Fragment key={`${group.customer || ''}_${group.ukuran || ''}_${groupIndex}`}>
                         {/* Row 1: A (Stok Awal) */}
                         <tr className="hover:bg-slate-50/50">
                           <td rowSpan={6} className="px-3 py-2 border-r border-b border-slate-200 text-slate-400 text-[11px] font-bold text-center bg-slate-50/30">
@@ -964,21 +1042,7 @@ export default function SpreadsheetView({ user }) {
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const isEditable = day === 1;
                             const val = group.A[day];
-                            return (
-                              <td key={day} className={`p-0 border-r border-slate-200 text-center ${isEditable ? 'focus-within:ring-1 focus-within:ring-indigo-500' : 'bg-slate-50/60'}`}>
-                                {isEditable ? (
-                                  <input
-                                    type="number"
-                                    value={val === 0 ? '' : val}
-                                    onChange={(e) => handleMatrixCellChange(groupIndex, 'A', day, e.target.value)}
-                                    className="w-12 h-8 text-center text-xs font-bold bg-transparent border-none focus:outline-none text-slate-850 p-0"
-                                    style={{ MozAppearance: 'textfield', WebkitAppearance: 'none', margin: 0 }}
-                                  />
-                                ) : (
-                                  <span className="text-slate-400 text-xs font-semibold select-none">{val}</span>
-                                )}
-                              </td>
-                            );
+                            return renderMatrixCell(groupIndex, 'A', day, val, isEditable);
                           })}
                           <td className="px-4 py-2 text-slate-700 font-extrabold text-xs text-right bg-slate-50/30">
                             {finalStock}
@@ -989,17 +1053,10 @@ export default function SpreadsheetView({ user }) {
                         <tr className="hover:bg-slate-50/50">
                           <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/10">WS</td>
                           <td className="px-3 py-1.5 border-r border-slate-200 text-emerald-600 text-center font-mono font-bold text-xs bg-emerald-50/20">M</td>
-                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-                            <td key={day} className="p-0 border-r border-slate-200 text-center focus-within:ring-1 focus-within:ring-indigo-500">
-                              <input
-                                type="number"
-                                value={group.M[day] === 0 ? '' : group.M[day]}
-                                onChange={(e) => handleMatrixCellChange(groupIndex, 'M', day, e.target.value)}
-                                className="w-12 h-8 text-center text-xs font-bold bg-transparent border-none focus:outline-none text-emerald-700 p-0"
-                                style={{ MozAppearance: 'textfield', WebkitAppearance: 'none', margin: 0 }}
-                              />
-                            </td>
-                          ))}
+                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                            const val = group.M[day];
+                            return renderMatrixCell(groupIndex, 'M', day, val, true);
+                          })}
                           <td className="px-4 py-2 text-emerald-700 font-extrabold text-xs text-right bg-emerald-50/10">
                             {sumM}
                           </td>
@@ -1009,17 +1066,10 @@ export default function SpreadsheetView({ user }) {
                         <tr className="hover:bg-slate-50/50">
                           <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/10"></td>
                           <td className="px-3 py-1.5 border-r border-slate-200 text-rose-600 text-center font-mono font-bold text-xs bg-rose-50/20">K</td>
-                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-                            <td key={day} className="p-0 border-r border-slate-200 text-center focus-within:ring-1 focus-within:ring-indigo-500">
-                              <input
-                                type="number"
-                                value={group.K[day] === 0 ? '' : group.K[day]}
-                                onChange={(e) => handleMatrixCellChange(groupIndex, 'K', day, e.target.value)}
-                                className="w-12 h-8 text-center text-xs font-bold bg-transparent border-none focus:outline-none text-rose-700 p-0"
-                                style={{ MozAppearance: 'textfield', WebkitAppearance: 'none', margin: 0 }}
-                              />
-                            </td>
-                          ))}
+                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                            const val = group.K[day];
+                            return renderMatrixCell(groupIndex, 'K', day, val, true);
+                          })}
                           <td className="px-4 py-2 text-rose-700 font-extrabold text-xs text-right bg-rose-50/10">
                             {sumK}
                           </td>
@@ -1029,17 +1079,10 @@ export default function SpreadsheetView({ user }) {
                         <tr className="hover:bg-slate-50/50">
                           <td rowSpan={2} className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[9px] bg-slate-50/10 leading-tight">RETUR</td>
                           <td className="px-3 py-1.5 border-r border-slate-200 text-indigo-650 text-center font-mono font-bold text-[10px] bg-indigo-50/20">R. Cust</td>
-                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-                            <td key={day} className="p-0 border-r border-slate-200 text-center focus-within:ring-1 focus-within:ring-indigo-500">
-                              <input
-                                type="number"
-                                value={group.RCust[day] === 0 ? '' : group.RCust[day]}
-                                onChange={(e) => handleMatrixCellChange(groupIndex, 'RCust', day, e.target.value)}
-                                className="w-12 h-8 text-center text-xs font-semibold bg-transparent border-none focus:outline-none text-indigo-700 p-0"
-                                style={{ MozAppearance: 'textfield', WebkitAppearance: 'none', margin: 0 }}
-                              />
-                            </td>
-                          ))}
+                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                            const val = group.RCust[day];
+                            return renderMatrixCell(groupIndex, 'RCust', day, val, true);
+                          })}
                           <td className="px-4 py-2 text-indigo-750 font-extrabold text-xs text-right bg-indigo-50/10">
                             {sumRCust}
                           </td>
@@ -1048,17 +1091,10 @@ export default function SpreadsheetView({ user }) {
                         {/* Row 5: R. WS (Retur WS/Lumajang) */}
                         <tr className="hover:bg-slate-50/50">
                           <td className="px-3 py-1.5 border-r border-slate-200 text-amber-600 text-center font-mono font-bold text-[10px] bg-amber-50/20">R. WS</td>
-                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-                            <td key={day} className="p-0 border-r border-slate-200 text-center focus-within:ring-1 focus-within:ring-indigo-500">
-                              <input
-                                type="number"
-                                value={group.RWS[day] === 0 ? '' : group.RWS[day]}
-                                onChange={(e) => handleMatrixCellChange(groupIndex, 'RWS', day, e.target.value)}
-                                className="w-12 h-8 text-center text-xs font-semibold bg-transparent border-none focus:outline-none text-amber-700 p-0"
-                                style={{ MozAppearance: 'textfield', WebkitAppearance: 'none', margin: 0 }}
-                              />
-                            </td>
-                          ))}
+                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                            const val = group.RWS[day];
+                            return renderMatrixCell(groupIndex, 'RWS', day, val, true);
+                          })}
                           <td className="px-4 py-2 text-amber-700 font-extrabold text-xs text-right bg-amber-50/10">
                             {sumRWS}
                           </td>
@@ -1070,11 +1106,7 @@ export default function SpreadsheetView({ user }) {
                           <td className="px-3 py-1.5 border-r border-slate-200 text-slate-800 text-center font-mono font-bold text-xs bg-slate-100/50">S</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const val = group.S[day];
-                            return (
-                              <td key={day} className="px-2 py-1.5 border-r border-slate-200 text-center text-slate-700 text-xs font-bold select-none bg-slate-50/40">
-                                {val}
-                              </td>
-                            );
+                            return renderMatrixCell(groupIndex, 'S', day, val, false);
                           })}
                           <td className="px-4 py-2 text-indigo-750 font-black text-sm text-right bg-indigo-50/10">
                             {finalStock}
@@ -1185,7 +1217,7 @@ export default function SpreadsheetView({ user }) {
                           <button
                             onClick={() => handleDeleteRow(rowIndex)}
                             title="Hapus Baris"
-                            className="p-1.5 text-rose-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 opacity-0 group-hover/row:opacity-100 transition-all cursor-pointer mx-auto block"
+                            className="p-1.5 text-rose-450 hover:text-rose-600 rounded-lg hover:bg-rose-50 opacity-0 group-hover/row:opacity-100 transition-all cursor-pointer mx-auto block"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
