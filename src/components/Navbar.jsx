@@ -29,7 +29,7 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSide
   }
 
   return (
-    <aside className={`fixed inset-y-0 left-0 w-80 md:w-72 bg-white border-r border-slate-200 flex flex-col h-screen shadow-2xl md:shadow-none z-50 md:sticky md:top-0 transition-transform duration-300 ease-in-out ${
+    <aside className={`fixed inset-y-0 left-0 w-80 md:w-72 bg-white border-r border-slate-200 flex flex-col h-[100dvh] md:h-screen shadow-2xl md:shadow-none z-50 md:sticky md:top-0 transition-transform duration-300 ease-in-out ${
       isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
     }`}>
       {/* Brand Logo & Close Button */}

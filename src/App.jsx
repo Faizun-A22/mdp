@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { storageAPI } from './utils/storage';
 import Login from './components/Login';
 import Navbar from './components/Navbar';
@@ -43,6 +43,28 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  // Memoize active component to prevent laggy sidebar toggles
+  const memoizedContent = useMemo(() => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'stock-pallet':
+        return <StockPallet user={currentUser} />;
+      case 'outstanding':
+        return <Outstanding user={currentUser} />;
+      case 'kiln-dry':
+        return <KilnDry user={currentUser} />;
+      case 'materials':
+        return <Materials user={currentUser} />;
+      case 'repairs':
+        return <Repairs user={currentUser} />;
+      case 'users':
+        return currentUser && currentUser.role === 'admin' ? <UserManagement /> : <Dashboard />;
+      default:
+        return <Dashboard />;
+    }
+  }, [activeTab, currentUser]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -58,28 +80,6 @@ export default function App() {
   if (!currentUser) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
-
-  // Render active component
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'stock-pallet':
-        return <StockPallet user={currentUser} />;
-      case 'outstanding':
-        return <Outstanding user={currentUser} />;
-      case 'kiln-dry':
-        return <KilnDry user={currentUser} />;
-      case 'materials':
-        return <Materials user={currentUser} />;
-      case 'repairs':
-        return <Repairs user={currentUser} />;
-      case 'users':
-        return currentUser.role === 'admin' ? <UserManagement /> : <Dashboard />;
-      default:
-        return <Dashboard />;
-    }
-  };
 
   return (
     <div className="flex bg-[#f8fafc] min-h-screen text-slate-700 antialiased overflow-x-hidden">
@@ -97,12 +97,12 @@ export default function App() {
       {isSidebarOpen && (
         <div 
           onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-40 md:hidden transition-all duration-300"
+          className="fixed inset-0 bg-slate-900/40 z-40 md:hidden transition-all duration-300"
         />
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full">
+      <main className="flex-1 flex flex-col min-h-screen md:h-screen md:overflow-y-auto w-full">
         {/* Top Header Bar */}
         <header className="h-20 bg-white border-b border-slate-200/80 sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
@@ -138,7 +138,7 @@ export default function App() {
 
         {/* Dashboard/Tab Page Content Wrapper */}
         <div className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-16">
-          {renderContent()}
+          {memoizedContent}
         </div>
       </main>
     </div>
