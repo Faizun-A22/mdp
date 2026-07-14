@@ -9,6 +9,7 @@ import KilnDry from './components/KilnDry';
 import Materials from './components/Materials';
 import Repairs from './components/Repairs';
 import UserManagement from './components/UserManagement';
+import SpreadsheetView from './components/SpreadsheetView';
 import { Menu } from 'lucide-react';
 import useStickyState from './utils/useStickyState';
 
@@ -60,6 +61,8 @@ export default function App() {
         return <Repairs user={currentUser} />;
       case 'users':
         return currentUser && currentUser.role === 'admin' ? <UserManagement /> : <Dashboard />;
+      case 'spreadsheet':
+        return <SpreadsheetView user={currentUser} />;
       default:
         return <Dashboard />;
     }

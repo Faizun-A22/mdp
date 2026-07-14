@@ -10,7 +10,8 @@ import {
   FileSpreadsheet,
   X,
   Brain,
-  MessageSquare
+  MessageSquare,
+  Table
 } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSidebarOpen, setIsSidebarOpen }) {
@@ -18,6 +19,7 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, isSide
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'stock-pallet', name: 'Stock Pallet', icon: Layers },
     { id: 'outstanding', name: 'Outstanding PO (OS)', icon: FileSpreadsheet },
+    { id: 'spreadsheet', name: 'Mode Spreadsheet (Excel)', icon: Table },
     { id: 'kiln-dry', name: 'Kiln Dry (KD)', icon: Thermometer },
     { id: 'materials', name: 'Bahan & Alat Kerja', icon: Wrench },
     { id: 'repairs', name: 'Repair Warehouse', icon: Activity },
