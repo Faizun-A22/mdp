@@ -974,20 +974,20 @@ export default function SpreadsheetView({ user }) {
                ======================================================= */
             <table className="w-full border-collapse border-slate-200 text-left table-auto">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-200 sticky top-0 z-20">
-                  <th rowSpan={2} className="px-3 py-2.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100">
+                <tr className="bg-slate-100 border-b border-slate-200 sticky top-0 z-40">
+                  <th rowSpan={2} className="sticky left-0 z-40 w-[45px] min-w-[45px] px-3 py-2.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100">
                     No
                   </th>
-                  <th rowSpan={2} className="px-4 py-2.5 border-r border-slate-200 text-slate-600 text-left font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100 min-w-[170px]">
+                  <th rowSpan={2} className="sticky left-[45px] z-40 w-[200px] min-w-[200px] px-4 py-2.5 border-r border-slate-200 text-slate-600 text-left font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100">
                     Customer / Pallet
                   </th>
-                  <th rowSpan={2} className="px-4 py-2.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100 min-w-[100px]">
+                  <th rowSpan={2} className="sticky left-[245px] z-40 w-[100px] min-w-[100px] px-4 py-2.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100">
                     Ukuran
                   </th>
-                  <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100">
+                  <th rowSpan={2} className="sticky left-[345px] z-40 w-[50px] min-w-[50px] px-2 py-2.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100">
                     Ket
                   </th>
-                  <th rowSpan={2} className="px-3 py-2.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100 font-mono">
+                  <th rowSpan={2} className="sticky left-[395px] z-40 w-[50px] min-w-[50px] px-3 py-2.5 border-r-2 border-slate-300 text-slate-600 text-center font-extrabold text-[11px] uppercase whitespace-nowrap bg-slate-100 font-mono shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                     Tipe
                   </th>
                   <th colSpan={daysInMonth} className="px-4 py-1.5 border-r border-slate-200 text-slate-600 text-center font-extrabold text-[11px] uppercase tracking-wider bg-slate-100">
@@ -1024,10 +1024,10 @@ export default function SpreadsheetView({ user }) {
                       <React.Fragment key={`${group.customer || ''}_${group.ukuran || ''}_${groupIndex}`}>
                         {/* Row 1: A (Stok Awal) */}
                         <tr className="hover:bg-slate-50/50">
-                          <td rowSpan={6} className="px-3 py-2 border-r border-b border-slate-200 text-slate-400 text-[11px] font-bold text-center bg-slate-50/30">
+                          <td rowSpan={6} className="sticky left-0 z-10 w-[45px] min-w-[45px] px-3 py-2 border-r border-b border-slate-200 text-slate-400 text-[11px] font-bold text-center bg-slate-50">
                             {groupIndex + 1}
                           </td>
-                          <td rowSpan={6} className="px-4 py-2 border-r border-b border-slate-200 text-slate-800 text-xs font-black bg-white">
+                          <td rowSpan={6} className="sticky left-[45px] z-10 w-[200px] min-w-[200px] px-4 py-2 border-r border-b border-slate-200 text-slate-800 text-xs font-black bg-white">
                             <div className="flex flex-col gap-1.5">
                               <span className="block break-words">{group.customer}</span>
                               <button
@@ -1038,12 +1038,12 @@ export default function SpreadsheetView({ user }) {
                               </button>
                             </div>
                           </td>
-                          <td rowSpan={6} className="px-4 py-2 border-r border-b border-slate-200 text-slate-500 text-xs font-bold text-center bg-slate-50/20 whitespace-nowrap">
+                          <td rowSpan={6} className="sticky left-[245px] z-10 w-[100px] min-w-[100px] px-4 py-2 border-r border-b border-slate-200 text-slate-500 text-xs font-bold text-center bg-slate-50 whitespace-nowrap">
                             {group.ukuran}
                           </td>
                           
-                          <td className="px-2 py-1.5 border-r border-slate-200 text-slate-400 text-center font-bold text-[10px] bg-slate-50/10"></td>
-                          <td className="px-3 py-1.5 border-r border-slate-200 text-slate-600 text-center font-mono font-bold text-xs bg-indigo-50/30">A</td>
+                          <td className="sticky left-[345px] z-10 w-[50px] min-w-[50px] px-2 py-1.5 border-r border-slate-200 text-slate-400 text-center font-bold text-[10px] bg-slate-50"></td>
+                          <td className="sticky left-[395px] z-10 w-[50px] min-w-[50px] px-3 py-1.5 border-r-2 border-slate-300 text-slate-600 text-center font-mono font-bold text-xs bg-indigo-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">A</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const isEditable = day === 1;
                             const val = (group.A || [])[day];
@@ -1056,8 +1056,8 @@ export default function SpreadsheetView({ user }) {
 
                         {/* Row 2: M (Masuk) */}
                         <tr className="hover:bg-slate-50/50">
-                          <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/10">WS</td>
-                          <td className="px-3 py-1.5 border-r border-slate-200 text-emerald-600 text-center font-mono font-bold text-xs bg-emerald-50/20">M</td>
+                          <td className="sticky left-[345px] z-10 w-[50px] min-w-[50px] px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50">WS</td>
+                          <td className="sticky left-[395px] z-10 w-[50px] min-w-[50px] px-3 py-1.5 border-r-2 border-slate-300 text-emerald-600 text-center font-mono font-bold text-xs bg-emerald-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">M</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const val = (group.M || [])[day];
                             return renderMatrixCell(groupIndex, 'M', day, val, true);
@@ -1069,8 +1069,8 @@ export default function SpreadsheetView({ user }) {
 
                         {/* Row 3: K (Keluar) */}
                         <tr className="hover:bg-slate-50/50">
-                          <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/10"></td>
-                          <td className="px-3 py-1.5 border-r border-slate-200 text-rose-600 text-center font-mono font-bold text-xs bg-rose-50/20">K</td>
+                          <td className="sticky left-[345px] z-10 w-[50px] min-w-[50px] px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50"></td>
+                          <td className="sticky left-[395px] z-10 w-[50px] min-w-[50px] px-3 py-1.5 border-r-2 border-slate-300 text-rose-600 text-center font-mono font-bold text-xs bg-rose-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">K</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const val = (group.K || [])[day];
                             return renderMatrixCell(groupIndex, 'K', day, val, true);
@@ -1082,8 +1082,8 @@ export default function SpreadsheetView({ user }) {
 
                         {/* Row 4: R. Cust (Retur Customer) */}
                         <tr className="hover:bg-slate-50/50">
-                          <td rowSpan={2} className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[9px] bg-slate-50/10 leading-tight">RETUR</td>
-                          <td className="px-3 py-1.5 border-r border-slate-200 text-indigo-650 text-center font-mono font-bold text-[10px] bg-indigo-50/20">R. Cust</td>
+                          <td rowSpan={2} className="sticky left-[345px] z-10 w-[50px] min-w-[50px] px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[9px] bg-slate-50 leading-tight">RETUR</td>
+                          <td className="sticky left-[395px] z-10 w-[50px] min-w-[50px] px-3 py-1.5 border-r-2 border-slate-300 text-indigo-650 text-center font-mono font-bold text-[10px] bg-indigo-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">R. Cust</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const val = (group.RCust || [])[day];
                             return renderMatrixCell(groupIndex, 'RCust', day, val, true);
@@ -1095,7 +1095,7 @@ export default function SpreadsheetView({ user }) {
 
                         {/* Row 5: R. WS (Retur WS/Lumajang) */}
                         <tr className="hover:bg-slate-50/50">
-                          <td className="px-3 py-1.5 border-r border-slate-200 text-amber-600 text-center font-mono font-bold text-[10px] bg-amber-50/20">R. WS</td>
+                          <td className="sticky left-[395px] z-10 w-[50px] min-w-[50px] px-3 py-1.5 border-r-2 border-slate-300 text-amber-600 text-center font-mono font-bold text-[10px] bg-amber-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">R. WS</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const val = (group.RWS || [])[day];
                             return renderMatrixCell(groupIndex, 'RWS', day, val, true);
@@ -1107,8 +1107,8 @@ export default function SpreadsheetView({ user }) {
 
                         {/* Row 6: S (Sisa/Stok Akhir) */}
                         <tr className="border-b-2 border-slate-350 hover:bg-slate-50/50 bg-slate-50/20 font-bold">
-                          <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/15"></td>
-                          <td className="px-3 py-1.5 border-r border-slate-200 text-slate-800 text-center font-mono font-bold text-xs bg-slate-100/50">S</td>
+                          <td className="sticky left-[345px] z-10 w-[50px] min-w-[50px] px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50"></td>
+                          <td className="sticky left-[395px] z-10 w-[50px] min-w-[50px] px-3 py-1.5 border-r-2 border-slate-300 text-slate-800 text-center font-mono font-bold text-xs bg-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">S</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const val = (group.S || [])[day];
                             return renderMatrixCell(groupIndex, 'S', day, val, false);
