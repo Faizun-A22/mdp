@@ -12,12 +12,48 @@ import UserManagement from './components/UserManagement';
 import SpreadsheetView from './components/SpreadsheetView';
 import { Menu } from 'lucide-react';
 import useStickyState from './utils/useStickyState';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useStickyState('dashboard', 'mdp_active_tab');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    const validTabs = ['dashboard', 'stock-pallet', 'outstanding', 'spreadsheet', 'kiln-dry', 'materials', 'repairs', 'users'];
+    if (hash && validTabs.includes(hash)) {
+      return hash;
+    }
+    const sticky = window.sessionStorage.getItem('mdp_active_tab');
+    if (sticky) {
+      try {
+        const parsed = JSON.parse(sticky);
+        if (validTabs.includes(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return 'dashboard';
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Sync activeTab with hash and sessionStorage
+  useEffect(() => {
+    window.sessionStorage.setItem('mdp_active_tab', JSON.stringify(activeTab));
+    if (window.location.hash !== `#${activeTab}`) {
+      window.location.hash = activeTab;
+    }
+  }, [activeTab]);
+
+  // Listen to browser/mobile back and forward button navigation (hashchange)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      const validTabs = ['dashboard', 'stock-pallet', 'outstanding', 'spreadsheet', 'kiln-dry', 'materials', 'repairs', 'users'];
+      if (hash && validTabs.includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     const initApp = async () => {
@@ -141,7 +177,9 @@ export default function App() {
 
         {/* Dashboard/Tab Page Content Wrapper */}
         <div className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-16">
-          {memoizedContent}
+          <ErrorBoundary>
+            {memoizedContent}
+          </ErrorBoundary>
         </div>
       </main>
     </div>

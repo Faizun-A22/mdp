@@ -141,21 +141,24 @@ export default function SpreadsheetView({ user }) {
     const customerKeys = [];
     const seen = new Set();
     
+    const safeTypes = Array.isArray(types) ? types : [];
+    const safeFlatData = Array.isArray(flatData) ? flatData : [];
+    
     // 1. From palletTypes
-    types.forEach(pt => {
+    safeTypes.filter(Boolean).forEach(pt => {
       const key = `${pt.nama || ''}_${pt.ukuran || ''}`;
       if (!seen.has(key)) {
         seen.add(key);
-        customerKeys.push({ customer: pt.nama, ukuran: pt.ukuran });
+        customerKeys.push({ customer: pt.nama || '', ukuran: pt.ukuran || '1000x1200 mm' });
       }
     });
     
     // 2. From flatData (in case there are other customers not registered in master)
-    flatData.forEach(item => {
+    safeFlatData.filter(Boolean).forEach(item => {
       const key = `${item.customer || ''}_${item.ukuran || ''}`;
       if (!seen.has(key)) {
         seen.add(key);
-        customerKeys.push({ customer: item.customer, ukuran: item.ukuran });
+        customerKeys.push({ customer: item.customer || '', ukuran: item.ukuran || '1000x1200 mm' });
       }
     });
 
@@ -173,7 +176,7 @@ export default function SpreadsheetView({ user }) {
       };
 
       // Filter database rows for this customer, size, and selected month/year
-      const filtered = flatData.filter(item => {
+      const filtered = safeFlatData.filter(Boolean).filter(item => {
         if (item.customer !== ck.customer || item.ukuran !== ck.ukuran) return false;
         const dateParts = parseDateParts(item.tanggal);
         return dateParts.month === month && dateParts.year === year;
@@ -196,7 +199,7 @@ export default function SpreadsheetView({ user }) {
       });
 
       // If Day 1 Stock Awal is 0, lookup the last ending balance from previous months
-      const recordsBeforeMonth = flatData.filter(item => {
+      const recordsBeforeMonth = safeFlatData.filter(Boolean).filter(item => {
         if (item.customer !== ck.customer || item.ukuran !== ck.ukuran) return false;
         const dateParts = parseDateParts(item.tanggal);
         
@@ -213,14 +216,16 @@ export default function SpreadsheetView({ user }) {
           return dateB - dateA;
         });
         const lastRecord = recordsBeforeMonth[0];
-        const lastSisa = Number(lastRecord.stockAwal || 0) + 
-                          Number(lastRecord.produksi || 0) + 
-                          Number(lastRecord.dariLumajang || 0) + 
-                          Number(lastRecord.dariSubcont || 0) + 
-                          Number(lastRecord.returCustomer || 0) - 
-                          Number(lastRecord.palletKeluar || 0) - 
-                          Number(lastRecord.returLumajang || 0);
-        group.A[1] = lastSisa;
+        if (lastRecord) {
+          const lastSisa = Number(lastRecord.stockAwal || 0) + 
+                            Number(lastRecord.produksi || 0) + 
+                            Number(lastRecord.dariLumajang || 0) + 
+                            Number(lastRecord.dariSubcont || 0) + 
+                            Number(lastRecord.returCustomer || 0) - 
+                            Number(lastRecord.palletKeluar || 0) - 
+                            Number(lastRecord.returLumajang || 0);
+          group.A[1] = lastSisa;
+        }
       }
 
       // Calculate running stock daily ledger
@@ -1008,12 +1013,12 @@ export default function SpreadsheetView({ user }) {
                     </td>
                   </tr>
                 ) : (
-                  filteredMatrixData.map((group, groupIndex) => {
-                    const sumM = group.M.reduce((sum, val) => sum + val, 0);
-                    const sumK = group.K.reduce((sum, val) => sum + val, 0);
-                    const sumRCust = group.RCust.reduce((sum, val) => sum + val, 0);
-                    const sumRWS = group.RWS.reduce((sum, val) => sum + val, 0);
-                    const finalStock = group.S[daysInMonth];
+                  filteredMatrixData.filter(Boolean).map((group, groupIndex) => {
+                    const sumM = (group.M || []).reduce((sum, val) => sum + val, 0);
+                    const sumK = (group.K || []).reduce((sum, val) => sum + val, 0);
+                    const sumRCust = (group.RCust || []).reduce((sum, val) => sum + val, 0);
+                    const sumRWS = (group.RWS || []).reduce((sum, val) => sum + val, 0);
+                    const finalStock = (group.S || [])[daysInMonth] || 0;
 
                     return (
                       <React.Fragment key={`${group.customer || ''}_${group.ukuran || ''}_${groupIndex}`}>
@@ -1041,7 +1046,7 @@ export default function SpreadsheetView({ user }) {
                           <td className="px-3 py-1.5 border-r border-slate-200 text-slate-600 text-center font-mono font-bold text-xs bg-indigo-50/30">A</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                             const isEditable = day === 1;
-                            const val = group.A[day];
+                            const val = (group.A || [])[day];
                             return renderMatrixCell(groupIndex, 'A', day, val, isEditable);
                           })}
                           <td className="px-4 py-2 text-slate-700 font-extrabold text-xs text-right bg-slate-50/30">
@@ -1054,7 +1059,7 @@ export default function SpreadsheetView({ user }) {
                           <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/10">WS</td>
                           <td className="px-3 py-1.5 border-r border-slate-200 text-emerald-600 text-center font-mono font-bold text-xs bg-emerald-50/20">M</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                            const val = group.M[day];
+                            const val = (group.M || [])[day];
                             return renderMatrixCell(groupIndex, 'M', day, val, true);
                           })}
                           <td className="px-4 py-2 text-emerald-700 font-extrabold text-xs text-right bg-emerald-50/10">
@@ -1067,7 +1072,7 @@ export default function SpreadsheetView({ user }) {
                           <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/10"></td>
                           <td className="px-3 py-1.5 border-r border-slate-200 text-rose-600 text-center font-mono font-bold text-xs bg-rose-50/20">K</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                            const val = group.K[day];
+                            const val = (group.K || [])[day];
                             return renderMatrixCell(groupIndex, 'K', day, val, true);
                           })}
                           <td className="px-4 py-2 text-rose-700 font-extrabold text-xs text-right bg-rose-50/10">
@@ -1080,7 +1085,7 @@ export default function SpreadsheetView({ user }) {
                           <td rowSpan={2} className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[9px] bg-slate-50/10 leading-tight">RETUR</td>
                           <td className="px-3 py-1.5 border-r border-slate-200 text-indigo-650 text-center font-mono font-bold text-[10px] bg-indigo-50/20">R. Cust</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                            const val = group.RCust[day];
+                            const val = (group.RCust || [])[day];
                             return renderMatrixCell(groupIndex, 'RCust', day, val, true);
                           })}
                           <td className="px-4 py-2 text-indigo-750 font-extrabold text-xs text-right bg-indigo-50/10">
@@ -1092,7 +1097,7 @@ export default function SpreadsheetView({ user }) {
                         <tr className="hover:bg-slate-50/50">
                           <td className="px-3 py-1.5 border-r border-slate-200 text-amber-600 text-center font-mono font-bold text-[10px] bg-amber-50/20">R. WS</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                            const val = group.RWS[day];
+                            const val = (group.RWS || [])[day];
                             return renderMatrixCell(groupIndex, 'RWS', day, val, true);
                           })}
                           <td className="px-4 py-2 text-amber-700 font-extrabold text-xs text-right bg-amber-50/10">
@@ -1105,7 +1110,7 @@ export default function SpreadsheetView({ user }) {
                           <td className="px-2 py-1.5 border-r border-slate-200 text-slate-500 text-center font-bold text-[10px] bg-slate-50/15"></td>
                           <td className="px-3 py-1.5 border-r border-slate-200 text-slate-800 text-center font-mono font-bold text-xs bg-slate-100/50">S</td>
                           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                            const val = group.S[day];
+                            const val = (group.S || [])[day];
                             return renderMatrixCell(groupIndex, 'S', day, val, false);
                           })}
                           <td className="px-4 py-2 text-indigo-750 font-black text-sm text-right bg-indigo-50/10">

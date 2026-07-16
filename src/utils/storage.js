@@ -605,7 +605,7 @@ export const storageAPI = {
         console.error('Error loading users, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.USERS, MOCK_USERS);
       }
-      return data.map(mapDbToUser);
+      return (data || []).map(mapDbToUser);
     }
     return getFromStorage(KEYS.USERS, MOCK_USERS);
   },
@@ -641,7 +641,7 @@ export const storageAPI = {
         console.error('Error loading pallet types, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.PALLET_TYPES, MOCK_PALLET_TYPES);
       }
-      return data.map(mapDbToPalletType);
+      return (data || []).map(mapDbToPalletType);
     }
     return getFromStorage(KEYS.PALLET_TYPES, MOCK_PALLET_TYPES);
   },
@@ -664,7 +664,7 @@ export const storageAPI = {
         console.error('Error loading stock pallets, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.STOCK_PALLET, MOCK_STOCK_PALLET);
       }
-      return data.map(mapDbToStock);
+      return (data || []).map(mapDbToStock);
     }
     return getFromStorage(KEYS.STOCK_PALLET, MOCK_STOCK_PALLET);
   },
@@ -704,7 +704,7 @@ export const storageAPI = {
         console.error('Error loading KD Belum, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.KILN_DRY_BELUM, MOCK_KD_BELUM);
       }
-      return data.map(mapDbToKDBelum);
+      return (data || []).map(mapDbToKDBelum);
     }
     return getFromStorage(KEYS.KILN_DRY_BELUM, MOCK_KD_BELUM);
   },
@@ -727,7 +727,7 @@ export const storageAPI = {
         console.error('Error loading KD Setelah, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.KILN_DRY_SETELAH, MOCK_KD_SETELAH);
       }
-      return data.map(mapDbToKDSetelah);
+      return (data || []).map(mapDbToKDSetelah);
     }
     return getFromStorage(KEYS.KILN_DRY_SETELAH, MOCK_KD_SETELAH);
   },
@@ -750,7 +750,7 @@ export const storageAPI = {
         console.error('Error loading KD Listrik, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.KILN_DRY_LISTRIK, MOCK_KD_LISTRIK);
       }
-      return data.map(mapDbToKDListrik);
+      return (data || []).map(mapDbToKDListrik);
     }
     return getFromStorage(KEYS.KILN_DRY_LISTRIK, MOCK_KD_LISTRIK);
   },
@@ -773,7 +773,7 @@ export const storageAPI = {
         console.error('Error loading materials, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.MATERIALS, MOCK_MATERIALS);
       }
-      return data.map(mapDbToMaterial);
+      return (data || []).map(mapDbToMaterial);
     }
     return getFromStorage(KEYS.MATERIALS, MOCK_MATERIALS);
   },
@@ -797,7 +797,7 @@ export const storageAPI = {
         // Fallback to local storage if table doesn't exist yet
         return getFromStorage(KEYS.MATERIAL_LOGS, MOCK_MATERIAL_LOGS);
       }
-      return data.map(mapDbToMaterialLog);
+      return (data || []).map(mapDbToMaterialLog);
     }
     return getFromStorage(KEYS.MATERIAL_LOGS, MOCK_MATERIAL_LOGS);
   },
@@ -821,7 +821,7 @@ export const storageAPI = {
         console.error('Error loading repairs, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.REPAIRS, MOCK_REPAIRS);
       }
-      return data.map(mapDbToRepair);
+      return (data || []).map(mapDbToRepair);
     }
     return getFromStorage(KEYS.REPAIRS, MOCK_REPAIRS);
   },
@@ -844,7 +844,7 @@ export const storageAPI = {
         console.error('Error loading outstanding POs, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.OUTSTANDING_PO, MOCK_OUTSTANDING_PO);
       }
-      return data.map(mapDbToOS);
+      return (data || []).map(mapDbToOS);
     }
     return getFromStorage(KEYS.OUTSTANDING_PO, MOCK_OUTSTANDING_PO);
   },
@@ -876,7 +876,7 @@ export const storageAPI = {
         console.error('Error loading PO deliveries, falling back to LocalStorage:', error);
         return getFromStorage(KEYS.PO_DELIVERIES, []);
       }
-      return data.map(mapDbToDelivery);
+      return (data || []).map(mapDbToDelivery);
     }
     return getFromStorage(KEYS.PO_DELIVERIES, []);
   },
