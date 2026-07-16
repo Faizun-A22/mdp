@@ -50,9 +50,31 @@ export default function App() {
       if (hash && validTabs.includes(hash)) {
         setActiveTab(hash);
       }
+      
+      // Saat tombol back ditekan di HP, buka sidebar navigasi agar lebih mudah
+      setIsSidebarOpen(true);
     };
+    
+    // Trik agar saat di halaman awal, menekan back tidak langsung keluar web
+    if (window.history.length === 1 || window.history.state === null) {
+      window.history.pushState({ page: 'init' }, '', window.location.href);
+    }
+    
+    const handlePopState = (e) => {
+      // Jika user mencoba back tapi tidak ada history (bisa keluar web), tahan dan buka navigasi
+      if (e.state === null) {
+        setIsSidebarOpen(true);
+        // Push state lagi agar back selanjutnya tetap tidak keluar web
+        window.history.pushState({ page: 'init' }, '', window.location.href);
+      }
+    };
+
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, []);
 
   useEffect(() => {
