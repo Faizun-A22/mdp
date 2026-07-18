@@ -3,6 +3,13 @@ import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Search, ChevronDown, Trash2, Edit3, X, Filter, Download, Check, RefreshCw, Link, Loader2, AlertCircle, ArrowUpDown, Calendar } from 'lucide-react';
 
+const normalizePalletName = (str) => {
+  if (!str) return '';
+  return str.toString().toLowerCase()
+    .replace(/\b(pt|cv|pd|ud)\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+};
+
 export default function StockPallet({ user }) {
   const [data, setData] = useState([]);
   const [palletTypes, setPalletTypes] = useState([]);
@@ -779,7 +786,7 @@ export default function StockPallet({ user }) {
         const rawReff = po.noReff || '';
         const slashIndex = rawReff.indexOf('/');
         const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-        const isMatchingPallet = po.batchId === palletTypeVal;
+        const isMatchingPallet = normalizePalletName(po.batchId) === normalizePalletName(palletTypeVal);
         const searchLower = reffInput.toLowerCase().trim();
         return isMatchingPallet && po.sisaPo > 0 && (
           baseReff.toLowerCase().includes(searchLower) ||
@@ -2821,7 +2828,7 @@ export default function StockPallet({ user }) {
                         const rawReff = po.noReff || '';
                         const slashIndex = rawReff.indexOf('/');
                         const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                        const isMatchingPallet = po.batchId === sjFormData.palletType;
+                        const isMatchingPallet = normalizePalletName(po.batchId) === normalizePalletName(sjFormData.palletType);
                         const searchLower = val.toLowerCase().trim();
                         const matchesSearch = baseReff.toLowerCase().trim() === searchLower ||
                                               po.nomorPo.toLowerCase().trim() === searchLower ||
@@ -2846,7 +2853,7 @@ export default function StockPallet({ user }) {
                           const rawReff = po.noReff || '';
                           const slashIndex = rawReff.indexOf('/');
                           const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                          const isMatchingPallet = po.batchId === sjFormData.palletType;
+                          const isMatchingPallet = normalizePalletName(po.batchId) === normalizePalletName(sjFormData.palletType);
                           const searchLower = reffInput.toLowerCase();
                           const matchesSearch = baseReff.toLowerCase().includes(searchLower) ||
                                                 po.nomorPo.toLowerCase().includes(searchLower) ||
@@ -2876,7 +2883,7 @@ export default function StockPallet({ user }) {
                           const rawReff = po.noReff || '';
                           const slashIndex = rawReff.indexOf('/');
                           const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                          const isMatchingPallet = po.batchId === sjFormData.palletType;
+                          const isMatchingPallet = normalizePalletName(po.batchId) === normalizePalletName(sjFormData.palletType);
                           const searchLower = reffInput.toLowerCase();
                           const matchesSearch = baseReff.toLowerCase().includes(searchLower) ||
                                                 po.nomorPo.toLowerCase().includes(searchLower) ||

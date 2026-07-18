@@ -3,6 +3,13 @@ import useStickyState from '../utils/useStickyState';
 import { storageAPI } from '../utils/storage';
 import { Plus, Search, Trash2, Edit3, X, FileSpreadsheet, Download, Check, AlertCircle, Info, Send, RefreshCw, Loader2, Link, ChevronLeft, Calendar, FileText, BarChart2, Image, Undo } from 'lucide-react';
 
+const normalizePalletName = (str) => {
+  if (!str) return '';
+  return str.toString().toLowerCase()
+    .replace(/\b(pt|cv|pd|ud)\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+};
+
 export default function Outstanding({ user }) {
   const [data, setData] = useState([]);
   const [palletTypes, setPalletTypes] = useState([]);
@@ -238,11 +245,11 @@ export default function Outstanding({ user }) {
     let finalUkuran = formData.ukuran;
 
     // Auto-resolve typed search term if it differs from the selected customer
-    if (palletSearchAdd.trim() && palletSearchAdd.trim() !== finalCustomer) {
+    if (palletSearchAdd.trim() && normalizePalletName(palletSearchAdd) !== normalizePalletName(finalCustomer)) {
       const allOpts = palletTypes.length > 0
         ? palletTypes
         : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
-      const matched = allOpts.find(t => t.nama.toLowerCase().includes(palletSearchAdd.toLowerCase()));
+      const matched = allOpts.find(t => normalizePalletName(t.nama) === normalizePalletName(palletSearchAdd) || t.nama.toLowerCase().includes(palletSearchAdd.toLowerCase()));
       if (matched) {
         finalCustomer = matched.nama;
         finalBatchId = matched.nama;
@@ -312,11 +319,11 @@ export default function Outstanding({ user }) {
     let finalUkuran = editingItem.ukuran;
 
     // Auto-resolve typed search term if it differs from editingItem's customer
-    if (palletSearchEdit.trim() && palletSearchEdit.trim() !== finalCustomer) {
+    if (palletSearchEdit.trim() && normalizePalletName(palletSearchEdit) !== normalizePalletName(finalCustomer)) {
       const allOpts = palletTypes.length > 0
         ? palletTypes
         : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
-      const matched = allOpts.find(t => t.nama.toLowerCase().includes(palletSearchEdit.toLowerCase()));
+      const matched = allOpts.find(t => normalizePalletName(t.nama) === normalizePalletName(palletSearchEdit) || t.nama.toLowerCase().includes(palletSearchEdit.toLowerCase()));
       if (matched) {
         finalCustomer = matched.nama;
         finalBatchId = matched.nama;
@@ -1569,7 +1576,7 @@ export default function Outstanding({ user }) {
                       const allOpts = palletTypes.length > 0
                         ? palletTypes
                         : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
-                      const filtered = allOpts.filter(t => t.nama.toLowerCase().includes(palletSearchAdd.toLowerCase()));
+                      const filtered = allOpts.filter(t => normalizePalletName(t.nama) === normalizePalletName(palletSearchAdd) || t.nama.toLowerCase().includes(palletSearchAdd.toLowerCase()));
                       if (filtered.length > 0) {
                         e.preventDefault();
                         const bestMatch = filtered[0];
@@ -1760,7 +1767,7 @@ export default function Outstanding({ user }) {
                       const allOpts = palletTypes.length > 0
                         ? palletTypes
                         : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
-                      const filtered = allOpts.filter(t => t.nama.toLowerCase().includes(palletSearchEdit.toLowerCase()));
+                      const filtered = allOpts.filter(t => normalizePalletName(t.nama) === normalizePalletName(palletSearchEdit) || t.nama.toLowerCase().includes(palletSearchEdit.toLowerCase()));
                       if (filtered.length > 0) {
                         e.preventDefault();
                         const bestMatch = filtered[0];
