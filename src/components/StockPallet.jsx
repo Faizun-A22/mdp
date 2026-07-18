@@ -779,7 +779,7 @@ export default function StockPallet({ user }) {
         const rawReff = po.noReff || '';
         const slashIndex = rawReff.indexOf('/');
         const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-        const isMatchingPallet = po.batchId === palletTypeVal || po.ukuran === ukuranVal;
+        const isMatchingPallet = po.batchId === palletTypeVal;
         const searchLower = reffInput.toLowerCase().trim();
         return isMatchingPallet && po.sisaPo > 0 && (
           baseReff.toLowerCase().includes(searchLower) ||
@@ -2821,7 +2821,7 @@ export default function StockPallet({ user }) {
                         const rawReff = po.noReff || '';
                         const slashIndex = rawReff.indexOf('/');
                         const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                        const isMatchingPallet = po.batchId === sjFormData.palletType || po.ukuran === sjFormData.ukuran;
+                        const isMatchingPallet = po.batchId === sjFormData.palletType;
                         const searchLower = val.toLowerCase().trim();
                         const matchesSearch = baseReff.toLowerCase().trim() === searchLower ||
                                               po.nomorPo.toLowerCase().trim() === searchLower ||
@@ -2846,7 +2846,7 @@ export default function StockPallet({ user }) {
                           const rawReff = po.noReff || '';
                           const slashIndex = rawReff.indexOf('/');
                           const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                          const isMatchingPallet = po.batchId === sjFormData.palletType || po.ukuran === sjFormData.ukuran;
+                          const isMatchingPallet = po.batchId === sjFormData.palletType;
                           const searchLower = reffInput.toLowerCase();
                           const matchesSearch = baseReff.toLowerCase().includes(searchLower) ||
                                                 po.nomorPo.toLowerCase().includes(searchLower) ||
@@ -2876,7 +2876,7 @@ export default function StockPallet({ user }) {
                           const rawReff = po.noReff || '';
                           const slashIndex = rawReff.indexOf('/');
                           const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
-                          const isMatchingPallet = po.batchId === sjFormData.palletType || po.ukuran === sjFormData.ukuran;
+                          const isMatchingPallet = po.batchId === sjFormData.palletType;
                           const searchLower = reffInput.toLowerCase();
                           const matchesSearch = baseReff.toLowerCase().includes(searchLower) ||
                                                 po.nomorPo.toLowerCase().includes(searchLower) ||
