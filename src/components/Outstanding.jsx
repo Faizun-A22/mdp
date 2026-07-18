@@ -1184,7 +1184,7 @@ export default function Outstanding({ user }) {
           </div>
 
           {/* Table Data PO for Selected Customer */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="hidden md:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -1253,7 +1253,7 @@ export default function Outstanding({ user }) {
                               className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-650 hover:text-indigo-700 font-bold py-1 px-2 rounded-lg text-xs transition-colors cursor-pointer"
                               title="Input Kiriman Tambahan"
                             >
-                              <Send className="w-3 h-3" />
+                              <Send className="w-3.5 h-3.5" />
                               <span>Kirim</span>
                             </button>
                             <button
@@ -1269,7 +1269,7 @@ export default function Outstanding({ user }) {
                               className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-650 hover:text-amber-700 font-bold py-1 px-2 rounded-lg text-xs transition-colors cursor-pointer"
                               title="Input Retur Pallet"
                             >
-                              <Undo className="w-3 h-3" />
+                              <Undo className="w-3.5 h-3.5" />
                               <span>Retur</span>
                             </button>
                             <button
@@ -1280,7 +1280,7 @@ export default function Outstanding({ user }) {
                               className="flex items-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-800 font-bold py-1 px-2 rounded-lg text-xs transition-colors border border-slate-200 cursor-pointer"
                               title="Lihat Rincian Pengiriman"
                             >
-                              <FileText className="w-3 h-3" />
+                              <FileText className="w-3.5 h-3.5" />
                               <span>Rincian</span>
                             </button>
                             <button
@@ -1309,6 +1309,125 @@ export default function Outstanding({ user }) {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile Cards List View for PO */}
+          <div className="md:hidden space-y-4">
+            {!(batches[selectedBatch]) || batches[selectedBatch].length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 text-center text-slate-400 font-medium border border-slate-100 shadow-xs">
+                Belum ada data PO untuk jenis pallet ini. Silakan klik "Tambah PO Baru" di kanan atas.
+              </div>
+            ) : (
+              batches[selectedBatch].map((item) => (
+                <div key={item.id} className="bg-white border border-slate-250 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs font-semibold">
+                      Tanggal PO: {item.tanggal}
+                    </span>
+                    <span className="inline-flex px-2 py-0.5 rounded bg-indigo-50 text-indigo-655 text-[10px] font-bold border border-indigo-150">
+                      Kirim: {item.tanggalKirim || '-'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="font-mono text-xs font-bold text-slate-800">PO: {item.nomorPo}</h4>
+                    <div className="flex flex-wrap gap-1.5 items-center mt-1.5">
+                      <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-650 font-bold">
+                        {item.ukuran}
+                      </span>
+                      {item.noReff && (
+                        <span className="inline-block px-2 py-0.5 rounded bg-indigo-50 text-[10px] border border-indigo-150 text-indigo-650 font-bold">
+                          Reff: {item.noReff}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl text-center text-[10px] border border-slate-100 font-sans">
+                    <div>
+                      <span className="text-slate-400 block font-semibold mb-0.5">Order</span>
+                      <span className="text-slate-700 font-bold">{item.jumlahPo.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div>
+                      <span className="text-emerald-500 block font-semibold mb-0.5">Kirim</span>
+                      <span className="text-emerald-650 font-bold">{item.kiriman.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div>
+                      <span className="text-amber-500 block font-semibold mb-0.5">Retur</span>
+                      <span className="text-amber-650 font-bold">{item.retur || 0}</span>
+                    </div>
+                    <div className="bg-indigo-50 rounded-lg py-0.5 border border-indigo-100/50">
+                      <span className="text-indigo-650 block font-bold mb-0.5">Sisa (OS)</span>
+                      <span className="text-indigo-800 font-black">{item.sisaPo.toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 justify-end">
+                    <button
+                      onClick={() => {
+                        setKirimanItem(item);
+                        const rawReff = item.noReff || '';
+                        const slashIndex = rawReff.indexOf('/');
+                        const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                        setNewNoReffVal(baseReff);
+                        setNewKirimanVal(0);
+                        setIsKirimanModalOpen(true);
+                      }}
+                      className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-650 font-bold py-1 px-2.5 rounded-lg text-xs transition-colors border border-indigo-100 cursor-pointer"
+                      title="Input Kiriman Tambahan"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Kirim</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setReturItem(item);
+                        const rawReff = item.noReff || '';
+                        const slashIndex = rawReff.indexOf('/');
+                        const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                        setNewNoReffVal(baseReff);
+                        setNewReturVal(0);
+                        setIsReturModalOpen(true);
+                      }}
+                      className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-650 hover:text-amber-700 font-bold py-1 px-2.5 rounded-lg text-xs transition-colors border border-amber-100 cursor-pointer"
+                      title="Input Retur Pallet"
+                    >
+                      <Undo className="w-3 h-3" />
+                      <span>Retur</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setHistoryItem(item);
+                        setIsHistoryModalOpen(true);
+                      }}
+                      className="flex items-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-800 font-bold py-1 px-2.5 rounded-lg text-xs transition-colors border border-slate-200 cursor-pointer"
+                      title="Lihat Rincian Pengiriman"
+                    >
+                      <FileText className="w-3 h-3" />
+                      <span>Rincian</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingItem(item);
+                        setPalletSearchEdit(item.customer || '');
+                        setIsEditModalOpen(true);
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      title="Edit PO"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                      title="Hapus PO"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       ) : viewMode === 'report' ? (
@@ -1361,7 +1480,8 @@ export default function Outstanding({ user }) {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
@@ -1393,7 +1513,7 @@ export default function Outstanding({ user }) {
                                 <td className="px-6 py-3.5 text-slate-500 font-medium whitespace-nowrap">{item.tanggal}</td>
                                 <td className="px-6 py-3.5 text-indigo-600 font-semibold whitespace-nowrap">{item.tanggalKirim || '-'}</td>
                                 <td className="px-6 py-3.5 text-slate-650 font-bold whitespace-nowrap">{item.noReff || '-'}</td>
-                                <td className="px-6 py-3.5 font-bold text-indigo-650 uppercase">{item.customer}</td>
+                                <td className="px-6 py-3.5 font-bold text-indigo-655 uppercase">{item.customer}</td>
                                 <td className="px-6 py-3.5 font-mono text-xs font-bold text-slate-700">{item.nomorPo}</td>
                                 <td className="px-6 py-3.5 text-slate-650">{item.ukuran}</td>
                                 <td className="px-6 py-3.5 text-right font-semibold text-slate-700">{item.jumlahPo.toLocaleString('id-ID')}</td>
@@ -1415,6 +1535,75 @@ export default function Outstanding({ user }) {
                         )}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="md:hidden divide-y divide-slate-100">
+                    {osList.length === 0 ? (
+                      <div className="px-6 py-12 text-center text-slate-400 font-medium">
+                        Tidak ada outstanding PO (semua PO lunas atau tidak ada data yang cocok dengan filter).
+                      </div>
+                    ) : (
+                      osList.map((item) => {
+                        const percent = item.jumlahPo > 0 ? (item.kiriman / item.jumlahPo) * 100 : 0;
+                        return (
+                          <div key={item.id} className="p-4 space-y-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-[11px] font-medium">
+                                Tanggal PO: {item.tanggal}
+                              </span>
+                              <span className="text-indigo-655 text-[10px] font-bold bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg">
+                                Kirim: {item.tanggalKirim || '-'}
+                              </span>
+                            </div>
+
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-extrabold text-sm text-slate-800 uppercase">{item.customer}</span>
+                                <span className="font-mono text-xs font-bold text-slate-600">{item.nomorPo}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 items-center mt-1.5">
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-650 font-bold">
+                                  {item.ukuran}
+                                </span>
+                                {item.noReff && (
+                                  <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-[10px] border border-indigo-150 text-indigo-650 font-bold">
+                                    Reff: {item.noReff}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-2 bg-slate-50 p-2 rounded-xl text-center text-[10px] border border-slate-100 font-sans">
+                              <div>
+                                <span className="text-slate-400 block font-semibold mb-0.5">Order</span>
+                                <span className="text-slate-700 font-bold">{item.jumlahPo.toLocaleString('id-ID')}</span>
+                              </div>
+                              <div>
+                                <span className="text-emerald-500 block font-semibold mb-0.5">Kirim</span>
+                                <span className="text-emerald-650 font-bold">{item.kiriman.toLocaleString('id-ID')}</span>
+                              </div>
+                              <div>
+                                <span className="text-amber-500 block font-semibold mb-0.5">Retur</span>
+                                <span className="text-amber-650 font-bold">{item.retur || 0}</span>
+                              </div>
+                              <div className="bg-rose-50 rounded-lg py-0.5 border border-rose-100/50">
+                                <span className="text-rose-700 block font-bold mb-0.5">Sisa (OS)</span>
+                                <span className="text-rose-800 font-black">{item.sisaPo.toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+                                <div className="h-full bg-emerald-500" style={{ width: `${percent}%` }}></div>
+                                <div className="h-full bg-rose-500 flex-1"></div>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-bold w-6">{percent.toFixed(0)}%</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </>

@@ -1450,7 +1450,7 @@ export default function StockPallet({ user }) {
                           <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-[10px] border border-slate-200 text-slate-600 font-bold">
                             {item.ukuran}
                           </span>
-                          {item.palletKeluar > 0 && item.subcontNama && (
+                          {item.subcontNama && item.subcontNama !== 'OPNAME' && (
                             <span className="inline-block px-2 py-0.5 rounded bg-indigo-50 text-[10px] border border-indigo-150 text-indigo-650 font-bold">
                               Reff: {item.subcontNama}
                             </span>
