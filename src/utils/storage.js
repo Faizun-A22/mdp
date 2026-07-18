@@ -694,6 +694,47 @@ export const storageAPI = {
     } catch (e) {
       console.error("Gagal sinkronisasi otomatis Outstanding PO dari Mutasi:", e);
     }
+
+    // Sinkronisasi Otomatis dengan Google Sheets di latar belakang
+    try {
+      const scriptUrl = localStorage.getItem('mdp_google_script_url');
+      if (scriptUrl) {
+        const periodsToSync = new Set();
+        const now = new Date();
+        periodsToSync.add(`${now.getFullYear()}-${now.getMonth() + 1}`);
+
+        // Ambil 10 data mutasi terbaru untuk mendeteksi bulan/tahun yang dimodifikasi
+        const sortedData = [...data].sort((a, b) => {
+          const dateA = a.tanggal ? new Date(a.tanggal) : new Date(0);
+          const dateB = b.tanggal ? new Date(b.tanggal) : new Date(0);
+          return dateB - dateA;
+        });
+        
+        const sample = sortedData.slice(0, 10);
+        sample.forEach(item => {
+          if (item.tanggal) {
+            const dateParts = item.tanggal.split('-');
+            if (dateParts.length >= 2) {
+              const y = parseInt(dateParts[0], 10);
+              const m = parseInt(dateParts[1], 10);
+              if (y && m) {
+                periodsToSync.add(`${y}-${m}`);
+              }
+            }
+          }
+        });
+
+        // Trigger sinkronisasi untuk setiap periode yang terdeteksi
+        import('./googleSheetsSync').then(({ syncMonthToGoogleSheets }) => {
+          periodsToSync.forEach(period => {
+            const [y, m] = period.split('-').map(Number);
+            syncMonthToGoogleSheets(m, y).catch(console.error);
+          });
+        });
+      }
+    } catch (e) {
+      console.error('Failed to trigger Google Sheets sync:', e);
+    }
   },
 
   // Kiln Dry (Belum)

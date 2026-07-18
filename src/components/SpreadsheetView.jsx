@@ -13,7 +13,8 @@ import {
   AlertCircle, 
   Check, 
   FileSpreadsheet,
-  AlertTriangle
+  AlertTriangle,
+  Settings
 } from 'lucide-react';
 
 export default function SpreadsheetView({ user }) {
@@ -35,6 +36,36 @@ export default function SpreadsheetView({ user }) {
   
   // Track which cell is active for click-to-edit (prevents input rendering lag)
   const [activeCell, setActiveCell] = useState(null); // { groupIndex, rowType, day }
+
+  // Google Sheets integration state
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [scriptUrl, setScriptUrl] = useState(() => 
+    localStorage.getItem('mdp_google_script_url') || 
+    import.meta.env.VITE_GOOGLE_SCRIPT_URL || 
+    'https://script.google.com/macros/s/AKfycbyyEjyLzz9eZTDsL0J25QC2_0VYy_g95UZQtcmNKrJxtcwra1BfQ7GLpsJ5mw97uDtn/exec'
+  );
+  const [isTestingSync, setIsTestingSync] = useState(false);
+
+  const handleManualSync = async () => {
+    if (!scriptUrl) {
+      alert('Silakan masukkan URL Google Apps Script terlebih dahulu.');
+      return;
+    }
+    
+    // Simpan URL
+    localStorage.setItem('mdp_google_script_url', scriptUrl);
+    
+    setIsTestingSync(true);
+    try {
+      const { syncMonthToGoogleSheets } = await import('../utils/googleSheetsSync');
+      await syncMonthToGoogleSheets(selectedMonth, selectedYear);
+      alert('Sinkronisasi manual berhasil dipicu!');
+    } catch (e) {
+      alert('Gagal memicu sinkronisasi: ' + e.message);
+    } finally {
+      setIsTestingSync(false);
+    }
+  };
 
   // Constants metadata for tables (used for Po and Materials, and definitions)
   const tablesMeta = {
@@ -870,12 +901,31 @@ export default function SpreadsheetView({ user }) {
           </button>
 
           <button
+            onClick={() => setShowSettingsModal(true)}
+            title="Setelan Google Sheets"
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all cursor-pointer shadow-xs"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
+          <button
             onClick={handleExport}
             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl border border-slate-200 transition-all text-xs cursor-pointer shadow-xs"
           >
             <Download className="w-4 h-4 text-slate-500" />
             <span>Ekspor Excel</span>
           </button>
+
+          {isDirty && (
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 bg-indigo-650 hover:bg-indigo-600 disabled:bg-indigo-400 text-white font-bold py-2.5 px-4 rounded-xl shadow-md cursor-pointer transition-all text-xs border border-indigo-700 animate-in fade-in zoom-in-95 duration-150"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSaving ? 'Menyimpan...' : 'Simpan & Sinkronkan'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1163,6 +1213,108 @@ export default function SpreadsheetView({ user }) {
           </div>
         </div>
       </div>
+
+      {/* MODAL SETELAN GOOGLE SHEETS */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 text-indigo-605 rounded-xl border border-indigo-100">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Setelan Google Sheets Sync</h3>
+                  <p className="text-slate-400 text-xs font-semibold">Hubungkan aplikasi dengan Google Spreadsheet Anda</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowSettingsModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+            
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-thin">
+              <div className="space-y-2">
+                <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider">
+                  Google Apps Script Web App URL
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  value={scriptUrl}
+                  onChange={(e) => setScriptUrl(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-250 bg-slate-50 focus:bg-white text-slate-800 text-xs font-semibold focus:outline-none focus:border-indigo-500 transition-all placeholder-slate-400 font-mono"
+                />
+              </div>
+
+              <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 space-y-2 text-xs">
+                <h4 className="font-bold text-indigo-900 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-indigo-650" />
+                  Cara Mendapatkan URL:
+                </h4>
+                <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1">
+                  <li>Buka Spreadsheet Anda, pilih menu <strong>Ekstensi</strong> &gt; <strong>Apps Script</strong>.</li>
+                  <li>Tempel kode Apps Script sinkronisasi yang telah disediakan.</li>
+                  <li>Klik tombol <strong>Terapkan (Deploy)</strong> &gt; <strong>Penerapan Baru</strong>.</li>
+                  <li>Pilih jenis <strong>Aplikasi Web</strong>. Setel akses ke: <strong>"Siapa saja" (Anyone)</strong>.</li>
+                  <li>Klik Terapkan dan salin URL yang diawali dengan <code>https://script.google.com...</code></li>
+                </ol>
+              </div>
+
+              {activeTable === 'stock_pallet' && (
+                <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100/50 space-y-2 text-xs">
+                  <h4 className="font-bold text-amber-900 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-650" />
+                    Catatan Nama Tab:
+                  </h4>
+                  <p className="text-slate-600 pl-1 leading-relaxed">
+                    Sistem akan mencari nama tab sheet yang mengandung kata <strong>"{monthsList.find(m => m.value === selectedMonth)?.label.toLowerCase()}"</strong> dan tahun <strong>"{selectedYear}"</strong> (contoh: <code>mutasi juli 2026</code>). Pastikan tab sheet dengan nama tersebut sudah ada di Google Spreadsheet Anda.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={isTestingSync || !scriptUrl}
+                className="w-full sm:w-fit flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-150 text-indigo-700 font-bold py-2.5 px-4 rounded-xl text-xs cursor-pointer transition-all disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isTestingSync ? 'animate-spin' : ''}`} />
+                <span>{isTestingSync ? 'Menyinkronkan...' : 'Tes Koneksi & Sync Bulan Ini'}</span>
+              </button>
+              
+              <div className="flex items-center gap-2 w-full sm:w-fit justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsModal(false)}
+                  className="w-full sm:w-fit px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 text-xs font-bold cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('mdp_google_script_url', scriptUrl);
+                    setShowSettingsModal(false);
+                    alert('URL Apps Script berhasil disimpan!');
+                  }}
+                  className="w-full sm:w-fit px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer shadow-md shadow-emerald-650/10"
+                >
+                  Simpan URL
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

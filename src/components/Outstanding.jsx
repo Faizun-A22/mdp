@@ -225,21 +225,43 @@ export default function Outstanding({ user }) {
       kiriman: 0
     }));
     setSelectedBatch(newBatchName);
+    setPalletSearchAdd(newBatchName);
     setIsModalOpen(true);
   };
 
   const handleSavePO = async (e) => {
     e.preventDefault();
     const poId = 'os_' + Date.now();
+
+    let finalCustomer = formData.customer;
+    let finalBatchId = selectedBatch || formData.batchId || `Batch PO`;
+    let finalUkuran = formData.ukuran;
+
+    // Auto-resolve typed search term if it differs from the selected customer
+    if (palletSearchAdd.trim() && palletSearchAdd.trim() !== finalCustomer) {
+      const allOpts = palletTypes.length > 0
+        ? palletTypes
+        : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
+      const matched = allOpts.find(t => t.nama.toLowerCase().includes(palletSearchAdd.toLowerCase()));
+      if (matched) {
+        finalCustomer = matched.nama;
+        finalBatchId = matched.nama;
+        finalUkuran = matched.ukuran || finalUkuran;
+      } else {
+        finalCustomer = palletSearchAdd.trim();
+        finalBatchId = palletSearchAdd.trim();
+      }
+    }
+
     const newItem = {
       id: poId,
-      batchId: selectedBatch || formData.batchId || `Batch PO`,
+      batchId: finalBatchId,
       tanggal: formData.tanggal,
       tanggalKirim: formData.tanggalKirim || '',
-      customer: formData.customer || selectedBatch || 'PT Unknown',
+      customer: finalCustomer || 'PT Unknown',
       nomorPo: formData.nomorPo,
       noReff: formData.noReff || '',
-      ukuran: formData.ukuran,
+      ukuran: finalUkuran,
       jumlahPo: Number(formData.jumlahPo),
       kiriman: Number(formData.kiriman),
       kirimanAwal: Number(formData.kiriman), // Base kiriman manual
@@ -285,20 +307,47 @@ export default function Outstanding({ user }) {
     e.preventDefault();
     if (!editingItem) return;
 
-    const jumlahPo = Number(editingItem.jumlahPo);
-    const kiriman = Number(editingItem.kiriman);
-    const retur = Number(editingItem.retur || 0);
+    let finalCustomer = editingItem.customer;
+    let finalBatchId = editingItem.batchId;
+    let finalUkuran = editingItem.ukuran;
+
+    // Auto-resolve typed search term if it differs from editingItem's customer
+    if (palletSearchEdit.trim() && palletSearchEdit.trim() !== finalCustomer) {
+      const allOpts = palletTypes.length > 0
+        ? palletTypes
+        : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
+      const matched = allOpts.find(t => t.nama.toLowerCase().includes(palletSearchEdit.toLowerCase()));
+      if (matched) {
+        finalCustomer = matched.nama;
+        finalBatchId = matched.nama;
+        finalUkuran = matched.ukuran || finalUkuran;
+      } else {
+        finalCustomer = palletSearchEdit.trim();
+        finalBatchId = palletSearchEdit.trim();
+      }
+    }
+
+    const updatedEditingItem = {
+      ...editingItem,
+      customer: finalCustomer,
+      batchId: finalBatchId,
+      ukuran: finalUkuran
+    };
+
+    const jumlahPo = Number(updatedEditingItem.jumlahPo);
+    const kiriman = Number(updatedEditingItem.kiriman);
+    const retur = Number(updatedEditingItem.retur || 0);
 
     let updatedDeliveries = [...deliveries];
-    const poDels = updatedDeliveries.filter(d => d.poId === editingItem.id);
+    const poDels = updatedDeliveries.filter(d => d.poId === updatedEditingItem.id);
 
     if (poDels.length === 0) {
       if (kiriman > 0) {
         updatedDeliveries.push({
-          id: 'del_edit_init_' + editingItem.id,
-          poId: editingItem.id,
-          tanggalKirim: editingItem.tanggalKirim || editingItem.tanggal || new Date().toISOString().split('T')[0],
-          noReff: editingItem.noReff || '',
+          id: 'del_edit_init_' + updatedEditingItem.id,
+          poId: updatedEditingItem.id,
+          tanggalKirim: updatedEditingItem.tanggalKirim || updatedEditingItem.tanggal || new Date().toISOString().split('T')[0],
+          noReff: updatedEditingItem.noReff || '',
           qtyKirim: kiriman
         });
       }
@@ -308,8 +357,8 @@ export default function Outstanding({ user }) {
           return {
             ...d,
             qtyKirim: kiriman,
-            noReff: editingItem.noReff || '',
-            tanggalKirim: editingItem.tanggalKirim || d.tanggalKirim
+            noReff: updatedEditingItem.noReff || '',
+            tanggalKirim: updatedEditingItem.tanggalKirim || d.tanggalKirim
           };
         }
         return d;
@@ -319,16 +368,16 @@ export default function Outstanding({ user }) {
     setDeliveries(updatedDeliveries);
     await storageAPI.saveDeliveries(updatedDeliveries);
 
-    const finalPoDels = updatedDeliveries.filter(d => d.poId === editingItem.id);
+    const finalPoDels = updatedDeliveries.filter(d => d.poId === updatedEditingItem.id);
     const finalKiriman = finalPoDels.reduce((sum, d) => sum + d.qtyKirim, 0) || kiriman;
-    const uniqueRefs = Array.from(new Set(finalPoDels.map(d => d.noReff).filter(Boolean))).join(', ') || editingItem.noReff;
+    const uniqueRefs = Array.from(new Set(finalPoDels.map(d => d.noReff).filter(Boolean))).join(', ') || updatedEditingItem.noReff;
     const sortedPoDels = [...finalPoDels].sort((a, b) => new Date(b.tanggalKirim) - new Date(a.tanggalKirim));
-    const latestTglKirim = sortedPoDels.length > 0 ? sortedPoDels[0].tanggalKirim : editingItem.tanggalKirim;
+    const latestTglKirim = sortedPoDels.length > 0 ? sortedPoDels[0].tanggalKirim : updatedEditingItem.tanggalKirim;
 
     const updated = data.map(item => {
-      if (item.id === editingItem.id) {
+      if (item.id === updatedEditingItem.id) {
         return {
-          ...editingItem,
+          ...updatedEditingItem,
           jumlahPo,
           kiriman: finalKiriman,
           kirimanAwal: finalKiriman,
@@ -941,6 +990,7 @@ export default function Outstanding({ user }) {
                   kiriman: 0,
                   retur: 0
                 });
+                setPalletSearchAdd(palletTypes[0]?.nama || '');
                 setIsModalOpen(true);
               }}
               className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md transition-all text-sm backdrop-blur-md cursor-pointer border border-white/10"
@@ -1084,6 +1134,7 @@ export default function Outstanding({ user }) {
                     kiriman: 0,
                     retur: 0
                   });
+                  setPalletSearchAdd(selectedBatch || '');
                   setIsModalOpen(true);
                 }}
                 className="flex items-center gap-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-xs cursor-pointer transition-all"
@@ -1513,6 +1564,26 @@ export default function Outstanding({ user }) {
                     setPalletSearchAdd(e.target.value);
                     setShowPalletDropAdd(true);
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const allOpts = palletTypes.length > 0
+                        ? palletTypes
+                        : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
+                      const filtered = allOpts.filter(t => t.nama.toLowerCase().includes(palletSearchAdd.toLowerCase()));
+                      if (filtered.length > 0) {
+                        e.preventDefault();
+                        const bestMatch = filtered[0];
+                        setFormData(prev => ({
+                          ...prev,
+                          customer: bestMatch.nama,
+                          batchId: bestMatch.nama,
+                          ukuran: bestMatch.ukuran || prev.ukuran
+                        }));
+                        setPalletSearchAdd(bestMatch.nama);
+                        setShowPalletDropAdd(false);
+                      }
+                    }
+                  }}
                   className="w-full text-sm p-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                 />
                 {showPalletDropAdd && (() => {
@@ -1683,6 +1754,26 @@ export default function Outstanding({ user }) {
                   onChange={(e) => {
                     setPalletSearchEdit(e.target.value);
                     setShowPalletDropEdit(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const allOpts = palletTypes.length > 0
+                        ? palletTypes
+                        : Array.from(new Set(data.map(i => i.customer))).map(n => ({ nama: n, ukuran: '' }));
+                      const filtered = allOpts.filter(t => t.nama.toLowerCase().includes(palletSearchEdit.toLowerCase()));
+                      if (filtered.length > 0) {
+                        e.preventDefault();
+                        const bestMatch = filtered[0];
+                        setEditingItem(prev => ({
+                          ...prev,
+                          customer: bestMatch.nama,
+                          batchId: bestMatch.nama,
+                          ukuran: bestMatch.ukuran || prev.ukuran
+                        }));
+                        setPalletSearchEdit(bestMatch.nama);
+                        setShowPalletDropEdit(false);
+                      }
+                    }
                   }}
                   className="w-full text-sm p-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                 />

@@ -10,7 +10,7 @@ import Materials from './components/Materials';
 import Repairs from './components/Repairs';
 import UserManagement from './components/UserManagement';
 import SpreadsheetView from './components/SpreadsheetView';
-import { Menu } from 'lucide-react';
+import { Menu, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import useStickyState from './utils/useStickyState';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -33,6 +33,29 @@ export default function App() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [syncState, setSyncState] = useState(null);
+
+  // Listen for Google Sheets sync status updates
+  useEffect(() => {
+    let successTimeout;
+    const handleSyncStatus = (e) => {
+      const { status, message, month, year } = e.detail;
+      setSyncState({ status, message, month, year });
+      
+      if (status === 'success') {
+        if (successTimeout) clearTimeout(successTimeout);
+        successTimeout = setTimeout(() => {
+          setSyncState(null);
+        }, 3000);
+      }
+    };
+    
+    window.addEventListener('mdp_sheets_sync_status', handleSyncStatus);
+    return () => {
+      window.removeEventListener('mdp_sheets_sync_status', handleSyncStatus);
+      if (successTimeout) clearTimeout(successTimeout);
+    };
+  }, []);
 
   // Sync activeTab with hash and sessionStorage
   useEffect(() => {
@@ -91,6 +114,23 @@ export default function App() {
     };
     initApp();
   }, []);
+
+  // Auto-sync Google Sheets on app startup/login for current month/year
+  useEffect(() => {
+    if (currentUser) {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const year = now.getFullYear();
+      
+      const timer = setTimeout(() => {
+        import('./utils/googleSheetsSync').then(({ syncMonthToGoogleSheets }) => {
+          syncMonthToGoogleSheets(month, year).catch(console.error);
+        });
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser]);
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
@@ -204,6 +244,51 @@ export default function App() {
           </ErrorBoundary>
         </div>
       </main>
+
+      {/* FLOATING SYNC TOAST */}
+      {syncState && (
+        <div className="fixed bottom-6 right-6 z-[60] max-w-sm w-full bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 flex items-center gap-3.5 animate-in slide-in-from-bottom-5 fade-in duration-200">
+          {syncState.status === 'syncing' ? (
+            <>
+              <div className="p-2.5 bg-indigo-50 text-indigo-650 rounded-xl border border-indigo-100 flex items-center justify-center animate-spin">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h5 className="font-bold text-slate-800 text-xs">Sinkronisasi Google Sheets</h5>
+                <p className="text-slate-400 text-[10px] font-semibold">Mengunggah mutasi bulan ke-{syncState.month}...</p>
+              </div>
+            </>
+          ) : syncState.status === 'success' ? (
+            <>
+              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h5 className="font-bold text-slate-800 text-xs">Sinkronisasi Sukses</h5>
+                <p className="text-slate-400 text-[10px] font-semibold">Google Sheets mutasi berhasil diperbarui!</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 flex items-center justify-center">
+                <XCircle className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h5 className="font-bold text-slate-800 text-xs">Sinkronisasi Gagal</h5>
+                <p className="text-slate-500 text-[10px] font-semibold truncate" title={syncState.message}>
+                  {syncState.message || 'Koneksi error.'}
+                </p>
+              </div>
+              <button 
+                onClick={() => setSyncState(null)} 
+                className="text-[10px] text-slate-400 hover:text-slate-655 font-bold border border-slate-200 rounded-lg px-2 py-1 bg-white shadow-xs cursor-pointer whitespace-nowrap"
+              >
+                Tutup
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

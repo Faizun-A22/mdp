@@ -692,23 +692,49 @@ export default function StockPallet({ user }) {
   // --- Handlers for Mutasi Transactions ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.customer) {
+
+    let customerName = formData.customer;
+    let ukuranVal = formData.ukuran;
+    let stockAwalVal = formData.stockAwal;
+
+    // Auto-resolve search term if typed but not selected from dropdown
+    if (palletTypeSearch.trim() && palletTypeSearch.trim() !== customerName) {
+      const matched = palletTypes.find(pt => 
+        pt.nama.toLowerCase().includes(palletTypeSearch.toLowerCase())
+      );
+      if (matched) {
+        customerName = matched.nama;
+        ukuranVal = matched.ukuran;
+        stockAwalVal = calculateStockAwalForForm(matched.nama, matched.ukuran, formData.tanggal, editingItem?.id);
+      } else {
+        customerName = palletTypeSearch.trim();
+      }
+    }
+
+    if (!customerName) {
       alert('Nama Customer wajib diisi!');
       return;
     }
-    if (!formData.ukuran) {
+    if (!ukuranVal) {
       alert('Ukuran pallet wajib diisi! Pastikan Anda memilih jenis pallet terlebih dahulu.');
       return;
     }
 
+    const resolvedFormData = {
+      ...formData,
+      customer: customerName,
+      ukuran: ukuranVal,
+      stockAwal: stockAwalVal
+    };
+
     let updatedData;
     if (editingItem) {
       // Edit mode
-      updatedData = data.map(item => item.id === editingItem.id ? { ...formData, id: item.id } : item);
+      updatedData = data.map(item => item.id === editingItem.id ? { ...resolvedFormData, id: item.id } : item);
     } else {
       // Add mode
       const newItem = {
-        ...formData,
+        ...resolvedFormData,
         id: 'sp_' + Date.now(),
         createdAt: new Date().toISOString()
       };
@@ -724,13 +750,50 @@ export default function StockPallet({ user }) {
 
   const handleSjSubmit = async (e) => {
     e.preventDefault();
-    const { tanggal, palletType, poId, reffSuffix, qtyKeluar } = sjFormData;
+    let { tanggal, palletType, poId, reffSuffix, qtyKeluar } = sjFormData;
+    let palletTypeVal = palletType;
+    let ukuranVal = sjFormData.ukuran;
+    let poIdVal = poId;
 
-    if (!palletType) {
+    // Auto-resolve typed pallet type if it differs or is empty
+    if (sjPalletTypeSearch.trim() && sjPalletTypeSearch.trim() !== palletType) {
+      const matched = palletTypes.find(pt => 
+        pt.nama.toLowerCase().includes(sjPalletTypeSearch.toLowerCase())
+      );
+      if (matched) {
+        palletTypeVal = matched.nama;
+        ukuranVal = matched.ukuran;
+      } else {
+        palletTypeVal = sjPalletTypeSearch.trim();
+      }
+    }
+
+    if (!palletTypeVal) {
       alert('Silakan pilih Jenis Pallet!');
       return;
     }
-    if (!poId) {
+
+    // Auto-resolve typed Reff/PO if not selected
+    if (!poIdVal && reffInput.trim()) {
+      const matchedPo = outstandingPOs.find(po => {
+        const rawReff = po.noReff || '';
+        const slashIndex = rawReff.indexOf('/');
+        const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+        const isMatchingPallet = po.batchId === palletTypeVal || po.ukuran === ukuranVal;
+        const searchLower = reffInput.toLowerCase().trim();
+        return isMatchingPallet && po.sisaPo > 0 && (
+          baseReff.toLowerCase().includes(searchLower) ||
+          po.nomorPo.toLowerCase().includes(searchLower) ||
+          po.customer.toLowerCase().includes(searchLower)
+        );
+      });
+
+      if (matchedPo) {
+        poIdVal = matchedPo.id;
+      }
+    }
+
+    if (!poIdVal) {
       alert('Silakan pilih No. Reff / PO!');
       return;
     }
@@ -739,7 +802,7 @@ export default function StockPallet({ user }) {
       return;
     }
 
-    const selectedPo = outstandingPOs.find(p => p.id === poId);
+    const selectedPo = outstandingPOs.find(p => p.id === poIdVal);
     if (!selectedPo) {
       alert('PO tidak ditemukan!');
       return;
@@ -1985,6 +2048,28 @@ export default function StockPallet({ user }) {
                       setShowDropdown(true);
                     }}
                     onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const filtered = palletTypes.filter(pt => {
+                          if (!palletTypeSearch) return true;
+                          return pt.nama.toLowerCase().includes(palletTypeSearch.toLowerCase()) ||
+                                 pt.ukuran.toLowerCase().includes(palletTypeSearch.toLowerCase());
+                        });
+                        if (filtered.length > 0) {
+                          e.preventDefault();
+                          const bestMatch = filtered[0];
+                          const stockAwal = calculateStockAwalForForm(bestMatch.nama, bestMatch.ukuran, formData.tanggal, editingItem?.id);
+                          setFormData(prev => ({
+                            ...prev,
+                            ukuran: bestMatch.ukuran,
+                            customer: bestMatch.nama,
+                            stockAwal: stockAwal
+                          }));
+                          setPalletTypeSearch(bestMatch.nama);
+                          setShowDropdown(false);
+                        }
+                      }
+                    }}
                     className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
                     autoComplete="off"
                   />
@@ -2637,6 +2722,28 @@ export default function StockPallet({ user }) {
                       setShowSjPalletDropdown(true);
                     }}
                     onBlur={() => setTimeout(() => setShowSjPalletDropdown(false), 200)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const filtered = palletTypes.filter(pt => {
+                          if (!sjPalletTypeSearch) return true;
+                          return pt.nama.toLowerCase().includes(sjPalletTypeSearch.toLowerCase()) ||
+                                 pt.ukuran.toLowerCase().includes(sjPalletTypeSearch.toLowerCase());
+                        });
+                        if (filtered.length > 0) {
+                          e.preventDefault();
+                          const bestMatch = filtered[0];
+                          setSjFormData(prev => ({
+                            ...prev,
+                            palletType: bestMatch.nama,
+                            ukuran: bestMatch.ukuran,
+                            poId: '' // reset PO selection when pallet type changes
+                          }));
+                          setSjPalletTypeSearch(bestMatch.nama);
+                          setReffInput('');
+                          setShowSjPalletDropdown(false);
+                        }
+                      }
+                    }}
                     className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold"
                     autoComplete="off"
                   />
@@ -2732,6 +2839,31 @@ export default function StockPallet({ user }) {
                     }}
                     onBlur={() => {
                       setTimeout(() => setShowReffSuggestions(false), 200);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const filtered = outstandingPOs.filter(po => {
+                          const rawReff = po.noReff || '';
+                          const slashIndex = rawReff.indexOf('/');
+                          const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                          const isMatchingPallet = po.batchId === sjFormData.palletType || po.ukuran === sjFormData.ukuran;
+                          const searchLower = reffInput.toLowerCase();
+                          const matchesSearch = baseReff.toLowerCase().includes(searchLower) ||
+                                                po.nomorPo.toLowerCase().includes(searchLower) ||
+                                                po.customer.toLowerCase().includes(searchLower);
+                          return isMatchingPallet && po.sisaPo > 0 && matchesSearch;
+                        });
+                        if (filtered.length > 0) {
+                          e.preventDefault();
+                          const bestMatch = filtered[0];
+                          const rawReff = bestMatch.noReff || '';
+                          const slashIndex = rawReff.indexOf('/');
+                          const baseReff = slashIndex !== -1 ? rawReff.substring(0, slashIndex + 1) : rawReff;
+                          setReffInput(baseReff);
+                          setSjFormData(prev => ({ ...prev, poId: bestMatch.id }));
+                          setShowReffSuggestions(false);
+                        }
+                      }
                     }}
                     placeholder={sjFormData.palletType ? "Ketik nomor Reff, PO, atau Customer..." : "Pilih Jenis Pallet terlebih dahulu..."}
                     className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-855 focus:outline-none focus:border-indigo-500 focus:bg-white text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
